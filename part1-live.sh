@@ -207,9 +207,9 @@ echo "[*] Entering chroot..."
 echo
 
 echo "[*] Fetching install scripts..."
-curl -fsSL "https://raw.githubusercontent.com/willemachterhof/arch-luks-tpm-secureboot/main/part2-chroot.sh" \
-  -o /mnt/root/install_part2.sh
-chmod +x /mnt/root/install_part2.sh
+curl -fsSL "https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/part2-chroot.sh" \
+  -o /mnt/root/part2-chroot.sh
+chmod +x /mnt/root/part2-chroot.sh
 
 arch-chroot /mnt /root/part2-chroot.sh
 
