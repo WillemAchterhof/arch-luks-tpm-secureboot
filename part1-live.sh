@@ -211,5 +211,5 @@ curl -fsSL "https://raw.githubusercontent.com/willemachterhof/arch-luks-tpm-secu
   -o /mnt/root/install_part2.sh
 chmod +x /mnt/root/install_part2.sh
 
-arch-chroot /mnt
+arch-chroot /mnt /root/part2-chroot.sh
 
