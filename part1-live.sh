@@ -86,7 +86,7 @@ fi
 # ------------------------------------------------------------------------------
 
 echo "[*] Generating high-entropy LUKS password..."
-LUKS_PASS=$(dd if=/dev/urandom bs=1 count=64 2>/dev/null | tr -dc 'A-Za-z0-9!@#$%^&*()_+=' | head -c 32)
+LUKS_PASS=$(dd if=/dev/urandom bs=1 count=256 2>/dev/null | tr -dc 'A-Za-z0-9!@#$%^&*()_+=' | head -c 32)
 
 echo "[*] Formatting LUKS2 container..."
 echo -n "$LUKS_PASS" | cryptsetup luksFormat "$ROOT_PART" \
