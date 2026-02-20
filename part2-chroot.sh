@@ -65,7 +65,7 @@ sed -i \
   /etc/pacman.conf
 
 echo "[*] Selecting mirrors..."
-reflector --country $COUNTRIES --age 10 --protocol https --sort rate \
+reflector --country "$COUNTRIES" --age 10 --protocol https --sort rate \
   --save /etc/pacman.d/mirrorlist
 
 echo "[*] Updating system..."
@@ -88,17 +88,27 @@ EOF
 chmod 440 /etc/sudoers.d/hardening
 
 echo "[*] Creating user $USERNAME ..."
-useradd -m -G wheel,libvirt -s /usr/bin/zsh "$USERNAME"
+useradd -m -G wheel -s /usr/bin/zsh "$USERNAME"
 passwd "$USERNAME"
 
 # ------------------------------------------------------------------------------
 # PHASE 7: MKINITCPIO
 # ------------------------------------------------------------------------------
 
+GPU_VENDOR=$(lspci | grep -i 'vga\|3d\|display' | head -1)
+
+if echo "$GPU_VENDOR" | grep -qi "amd"; then
+    GPU_MODULE="amdgpu"
+elif echo "$GPU_VENDOR" | grep -qi "nvidia"; then
+    GPU_MODULE="nvidia"
+else
+    GPU_MODULE=""
+fi
+
 echo "[*] Configuring mkinitcpio..."
-sed -i 's/^MODULES=.*/MODULES=(amdgpu)/'                                                                                                              /etc/mkinitcpio.conf
+sed -i 's/^MODULES=.*/MODULES=("$GPU_MODULE")/'                                                                                                       /etc/mkinitcpio.conf
 sed -i 's/^BINARIES=.*/BINARIES=()/'                                                                                                                  /etc/mkinitcpio.conf
-sed -i 's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt plymouth filesystems fsck)|'                        /etc/mkinitcpio.conf
+sed -i 's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt filesystems fsck)|'                                /etc/mkinitcpio.conf
 sed -i 's|^#*COMPRESSION=.*|COMPRESSION="zstd"|'                                                                                                      /etc/mkinitcpio.conf
 sed -i 's|^#*COMPRESSION_OPTIONS=.*|COMPRESSION_OPTIONS="-3"|'                                                                                        /etc/mkinitcpio.conf
 
@@ -109,7 +119,7 @@ LUKS_UUID=$(blkid -s UUID -o value "$(cryptsetup status cryptroot | awk '/device
 
 mkdir -p /etc/kernel
 cat <<EOF > /etc/kernel/cmdline
-quiet splash rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0,7 root=/dev/mapper/cryptroot rootfstype=ext4 lsm=landlock,lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality
+rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0,7 root=/dev/mapper/cryptroot rootfstype=ext4 lsm=landlock,lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality
 EOF
 
 echo "[*] Creating UKI preset..."
@@ -127,8 +137,7 @@ EOF
 
 echo "[*] Installing pacman signing hook..."
 mkdir -p /etc/pacman.d/hooks
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/zz-sbctl-uki.hook.conf
--o /etc/pacman.d/hooks/zz-sbctl-uki.hook.conf
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/zz-sbctl-uki.hook.conf -o /etc/pacman.d/hooks/zz-sbctl-uki.hook.conf
 
 # ------------------------------------------------------------------------------
 # PHASE 9: SERVICES
@@ -146,8 +155,7 @@ systemctl enable systemd-timesyncd
 ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 echo "[*] Configuring NetworkManager..."
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/NetworkManager.conf
--o /etc/NetworkManager/NetworkManager.conf
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/NetworkManager.conf -o /etc/NetworkManager/NetworkManager.conf
 
 mkdir -p /etc/NetworkManager/conf.d/
 cat <<'EOF' > /etc/NetworkManager/conf.d/20-mac-randomize.conf
@@ -178,16 +186,13 @@ systemctl disable \
 # ------------------------------------------------------------------------------
 
 echo "[*] Writing firewall rules..."
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/nftables.conf
--o /etc/nftables.conf
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/nftables.conf -o /etc/nftables.conf
 
 echo "[*] Writing sysctl hardening..."
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/99-hardening.conf
--o /etc/sysctl.d/99-hardening.conf
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/99-hardening.conf -o /etc/sysctl.d/99-hardening.conf
 
 echo "[*] Writing kernel module blacklist..."
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/blacklist.conf
--o /etc/modprobe.d/blacklist.conf
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/blacklist.conf -o /etc/modprobe.d/blacklist.conf
 
 echo "[*] Building UKI..."
 mkinitcpio -P
@@ -197,12 +202,13 @@ mkinitcpio -P
 # ------------------------------------------------------------------------------
 
 echo "[*] Fetching Part 3 (Secure Boot)..."
-curl -fsSL "https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/part3-secureboot.sh" \
-  -o /root/part3-secureboot.sh
+curl -fsSL "https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/part3-secureboot.sh" -o /root/part3-secureboot.sh
 chmod +x /root/part3-secureboot.sh
 
 echo
 echo "[*] Part 2 complete. Launching Part 3 (Secure Boot)..."
 echo
+
+shred -u /root/luks-pass.tmp
 
 bash /root/part3-secureboot.sh
