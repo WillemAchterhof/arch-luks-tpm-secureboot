@@ -146,9 +146,8 @@ systemctl enable systemd-timesyncd
 ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 echo "[*] Configuring NetworkManager..."
-cat <<'EOF' > /etc/NetworkManager/NetworkManager.conf
-
-EOF
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/NetworkManager.conf
+-o /etc/NetworkManager/NetworkManager.conf
 
 mkdir -p /etc/NetworkManager/conf.d/
 cat <<'EOF' > /etc/NetworkManager/conf.d/20-mac-randomize.conf
