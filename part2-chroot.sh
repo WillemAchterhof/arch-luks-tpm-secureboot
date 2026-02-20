@@ -119,7 +119,7 @@ LUKS_UUID=$(blkid -s UUID -o value "$(cryptsetup status cryptroot | awk '/device
 
 mkdir -p /etc/kernel
 cat <<EOF > /etc/kernel/cmdline
-rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0,7 root=/dev/mapper/cryptroot rootfstype=ext4 lsm=landlock,lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality
+rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0,7 root=/dev/mapper/cryptroot rootfstype=ext4 lsm=lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality
 EOF
 
 echo "[*] Creating UKI preset..."
