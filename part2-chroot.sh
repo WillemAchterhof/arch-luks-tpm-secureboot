@@ -137,7 +137,7 @@ EOF
 
 echo "[*] Installing pacman signing hook..."
 mkdir -p /etc/pacman.d/hooks
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/zz-sbctl-uki.hook.conf -o /etc/pacman.d/hooks/zz-sbctl-uki.hook
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/zz-sbctl-uki.hook -o /etc/pacman.d/hooks/zz-sbctl-uki.hook
 
 # ------------------------------------------------------------------------------
 # PHASE 9: SERVICES
