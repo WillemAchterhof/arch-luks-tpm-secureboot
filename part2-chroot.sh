@@ -106,7 +106,7 @@ else
 fi
 
 echo "[*] Configuring mkinitcpio..."
-sed -i "s/^MODULES=.*/MODULES=($GPU_MODULE)/"                                                                                                       /etc/mkinitcpio.conf
+sed -i "s/^MODULES=.*/MODULES=($GPU_MODULE)/"                                                                                                         /etc/mkinitcpio.conf
 sed -i 's/^BINARIES=.*/BINARIES=()/'                                                                                                                  /etc/mkinitcpio.conf
 sed -i 's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt filesystems fsck)|'                                /etc/mkinitcpio.conf
 sed -i 's|^#*COMPRESSION=.*|COMPRESSION="zstd"|'                                                                                                      /etc/mkinitcpio.conf
@@ -137,7 +137,7 @@ EOF
 
 echo "[*] Installing pacman signing hook..."
 mkdir -p /etc/pacman.d/hooks
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/zz-sbctl-uki.hook.conf -o /etc/pacman.d/hooks/zz-sbctl-uki.hook.conf
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/zz-sbctl-uki.hook.conf -o /etc/pacman.d/hooks/zz-sbctl-uki.hook
 
 # ------------------------------------------------------------------------------
 # PHASE 9: SERVICES
