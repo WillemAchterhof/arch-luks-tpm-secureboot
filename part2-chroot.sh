@@ -209,6 +209,4 @@ echo
 echo "[*] Part 2 complete. Launching Part 3 (Secure Boot)..."
 echo
 
-shred -u /root/luks-pass.tmp
-
 bash /root/part3-secureboot.sh
