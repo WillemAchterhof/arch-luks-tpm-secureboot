@@ -20,7 +20,7 @@ read -rp "Enter computer name: " HOSTNAME
 read -rp "Enter counteries for geograpical location of downlaod mirrors: " COUNTRIES
 
 # ------------------------------------------------------------------------------
-# PHASE 5: SYSTEM CONFIGURATION
+# SYSTEM CONFIGURATION
 # ------------------------------------------------------------------------------
 
 echo "[*] Setting timezone..."
@@ -54,7 +54,7 @@ VISUAL=nvim
 EOF
 
 # ------------------------------------------------------------------------------
-# PHASE 5.5: PACMAN SETUP
+# PACMAN SETUP
 # ------------------------------------------------------------------------------
 
 echo "[*] Configuring pacman..."
@@ -72,7 +72,7 @@ echo "[*] Updating system..."
 pacman -Syu --noconfirm
 
 # ------------------------------------------------------------------------------
-# PHASE 6: USER AND ROOT SETUP
+# USER AND ROOT SETUP
 # ------------------------------------------------------------------------------
 
 echo "[*] Setting root password..."
@@ -92,7 +92,7 @@ useradd -m -G wheel -s /usr/bin/zsh "$USERNAME"
 passwd "$USERNAME"
 
 # ------------------------------------------------------------------------------
-# PHASE 7: MKINITCPIO
+# MKINITCPIO
 # ------------------------------------------------------------------------------
 
 GPU_VENDOR=$(lspci | grep -i 'vga\|3d\|display' | head -1)
@@ -132,7 +132,7 @@ default_uki="/boot/EFI/Linux/arch-linux.efi"
 EOF
 
 # ------------------------------------------------------------------------------
-# PHASE 8: AUTOSIGNING HOOK
+# AUTOSIGNING HOOK
 # ------------------------------------------------------------------------------
 
 echo "[*] Installing pacman signing hook..."
@@ -140,7 +140,7 @@ mkdir -p /etc/pacman.d/hooks
 curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/zz-sbctl-uki.hook -o /etc/pacman.d/hooks/zz-sbctl-uki.hook
 
 # ------------------------------------------------------------------------------
-# PHASE 9: SERVICES
+# SERVICES
 # ------------------------------------------------------------------------------
 
 echo "[*] Enabling services..."
@@ -182,7 +182,7 @@ systemctl disable \
   systemd-pstore.service
 
 # ------------------------------------------------------------------------------
-# PHASE 10: HARDENING
+# HARDENING
 # ------------------------------------------------------------------------------
 
 echo "[*] Writing firewall rules..."
@@ -198,7 +198,7 @@ echo "[*] Building UKI..."
 mkinitcpio -P
 
 # ------------------------------------------------------------------------------
-# FETCH AND CHAIN INTO PART 4
+# FETCH AND CHAIN INTO PART 3
 # ------------------------------------------------------------------------------
 
 echo "[*] Fetching Part 3 (Secure Boot)..."
