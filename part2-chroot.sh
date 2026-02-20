@@ -106,7 +106,7 @@ else
 fi
 
 echo "[*] Configuring mkinitcpio..."
-sed -i "s/^MODULES=.*/MODULES=("$GPU_MODULE")/"                                                                                                       /etc/mkinitcpio.conf
+sed -i "s/^MODULES=.*/MODULES=($GPU_MODULE)/"                                                                                                       /etc/mkinitcpio.conf
 sed -i 's/^BINARIES=.*/BINARIES=()/'                                                                                                                  /etc/mkinitcpio.conf
 sed -i 's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt filesystems fsck)|'                                /etc/mkinitcpio.conf
 sed -i 's|^#*COMPRESSION=.*|COMPRESSION="zstd"|'                                                                                                      /etc/mkinitcpio.conf
