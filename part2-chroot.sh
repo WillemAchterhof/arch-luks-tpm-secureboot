@@ -31,12 +31,13 @@ echo "[*] Generating locale..."
 sed -i '/^#en_US.UTF-8 UTF-8/s/^#//' /etc/locale.gen
 locale-gen
 
-https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/locale.conf
+echo "LANG=en_US.UTF-8" > /etc/locale.conf
+echo "KEYMAP=us" > /etc/vconsole.conf
 
 echo "[*] Setting hostname..."
 echo "$HOSTNAME" > /etc/hostname
 
-cat <<'EOF' > /etc/hosts
+cat <<EOF > /etc/hosts
 127.0.0.1   localhost
 ::1         localhost
 127.0.1.1   $HOSTNAME.localdomain $HOSTNAME
@@ -126,9 +127,8 @@ EOF
 
 echo "[*] Installing pacman signing hook..."
 mkdir -p /etc/pacman.d/hooks
-cat <<'EOF' > /etc/pacman.d/hooks/zz-sbctl-uki.hook
-https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/zz-sbctl-uki.hook.conf
-EOF
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/zz-sbctl-uki.hook.conf
+-o /etc/pacman.d/hooks/zz-sbctl-uki.hook.conf
 
 # ------------------------------------------------------------------------------
 # PHASE 9: SERVICES
@@ -147,11 +147,7 @@ ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 echo "[*] Configuring NetworkManager..."
 cat <<'EOF' > /etc/NetworkManager/NetworkManager.conf
-[device]
-wifi.backend=iwd
 
-[main]
-dns=systemd-resolved
 EOF
 
 mkdir -p /etc/NetworkManager/conf.d/
@@ -183,19 +179,16 @@ systemctl disable \
 # ------------------------------------------------------------------------------
 
 echo "[*] Writing firewall rules..."
-cat <<'EOF' > /etc/nftables.conf
-https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/nftables.conf
-EOF
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/nftables.conf
+-o /etc/nftables.conf
 
 echo "[*] Writing sysctl hardening..."
-cat <<'EOF' > /etc/sysctl.d/99-hardening.conf
-https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/99-hardening.conf
-EOF
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/99-hardening.conf
+-o /etc/sysctl.d/99-hardening.conf
 
 echo "[*] Writing kernel module blacklist..."
-cat <<'EOF' > /etc/modprobe.d/blacklist.conf
-https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/blacklist.conf
-EOF
+curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/blacklist.conf
+-o /etc/modprobe.d/blacklist.conf
 
 echo "[*] Building UKI..."
 mkinitcpio -P
