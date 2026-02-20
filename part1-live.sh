@@ -180,11 +180,8 @@ UUID=$EFI_UUID   /boot  vfat  rw,noatime,fmask=0077,dmask=0077  0 2
 EOF
 
 # ------------------------------------------------------------------------------
-# STORE LUKS PASSWORD TEMPORARILY
+# STORE LUKS PASSWORD
 # ------------------------------------------------------------------------------
-
-echo "$LUKS_PASS" > /mnt/root/luks-pass.tmp
-chmod 600 /mnt/root/luks-pass.tmp
 
 clear
 echo "================================================="
