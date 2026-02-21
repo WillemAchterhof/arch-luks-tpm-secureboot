@@ -174,6 +174,11 @@ sudo -u "$USERNAME" xdg-user-dirs-update || true echo
 echo "[*] Enabling WirePlumber user service for $USERNAME..." 
 sudo -u "$USERNAME" systemctl --user enable --now wireplumber || true
 
+sed -i '/^#TERMINAL=alacrittys/^#//' /etc/environment
+sed -i '/^#MOZ_ENABLE_WAYLAND=1/^#//' /etc/environment
+sed -i '/^#QT_QPA_PLATFORM=wayland/^#//' /etc/environment
+sed -i '/^#SDL_VIDEODRIVER=wayland/^#//' /etc/environment
+
 # ------------------------------------------------------------------------------
 # UTILITIES
 # ------------------------------------------------------------------------------
