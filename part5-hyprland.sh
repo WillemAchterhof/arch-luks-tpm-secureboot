@@ -170,7 +170,7 @@ systemctl enable --now libvirtd
 # ------------------------------------------------------------------------------ 
 
 echo "[*] Updating XDG user directories for $USERNAME..." 
-sudo -u "$USERNAME" xdg-user-dirs-update || true echo 
+sudo -u "$USERNAME" xdg-user-dirs-update || true
 
 echo "[*] Enabling WirePlumber user service for $USERNAME..." 
 sudo -u "$USERNAME" systemctl --user enable --now wireplumber || true
