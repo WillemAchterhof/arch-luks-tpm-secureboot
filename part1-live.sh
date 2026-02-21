@@ -141,13 +141,14 @@ else
     curl -fsSL "$SCRIPT_BASE/part2-chroot.sh"              -o /mnt/install/part2-chroot.sh
     curl -fsSL "$SCRIPT_BASE/part3-secureboot.sh"          -o /mnt/install/part3-secureboot.sh
     curl -fsSL "$SCRIPT_BASE/part4-post-reboot.sh"         -o /mnt/install/part4-post-reboot.sh
-    curl -fsSL "$SCRIPT_BASE/part5-hyprland.sh             -o /mnt/install/part5-hyprland.sh
+    curl -fsSL "$SCRIPT_BASE/part5-hyprland.sh"            -o /mnt/install/part5-hyprland.sh
     curl -fsSL "$SCRIPT_BASE/configs/nftables.conf"        -o /mnt/install/configs/nftables.conf
     curl -fsSL "$SCRIPT_BASE/configs/99-hardening.conf"    -o /mnt/install/configs/99-hardening.conf
     curl -fsSL "$SCRIPT_BASE/configs/blacklist.conf"       -o /mnt/install/configs/blacklist.conf
     curl -fsSL "$SCRIPT_BASE/configs/NetworkManager.conf"  -o /mnt/install/configs/NetworkManager.conf
     curl -fsSL "$SCRIPT_BASE/configs/zz-sbctl-uki.hook"    -o /mnt/install/configs/zz-sbctl-uki.hook
     curl -fsSL "$SCRIPT_BASE/configs/hyprland.conf"        -o /mnt/install/configs/hyprland.conf
+fi
 
 chmod +x /mnt/install/part*.sh
 
