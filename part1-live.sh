@@ -45,6 +45,18 @@ ping -c 3 archlinux.org || { echo "Network failed."; exit 1; }
 echo "Connection established"
 
 # ------------------------------------------------------------------------------
+# SCRIPT SOURCE DETECTION
+# ------------------------------------------------------------------------------
+
+if [[ -d "/run/media/arch/scripts" ]]; then
+    SCRIPT_BASE="/run/media/arch/scripts"
+    echo "[*] Using local USB scripts..."
+else
+    SCRIPT_BASE="https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main"
+    echo "[*] Using GitHub scripts..."
+fi
+
+# ------------------------------------------------------------------------------
 # DISK SELECTION
 # ------------------------------------------------------------------------------
 
@@ -114,6 +126,29 @@ echo "[*] Mounting..."
 mount /dev/mapper/cryptroot /mnt
 mkdir -p /mnt/boot
 mount "$EFI_PART" /mnt/boot
+
+# ------------------------------------------------------------------------------
+# COPYING INSTALL SCRIPTS
+# ------------------------------------------------------------------------------
+
+echo "[*] Copying install scripts..."
+mkdir -p /mnt/install/configs
+
+if [[ "$SCRIPT_BASE" == /* ]]; then
+    cp "$SCRIPT_BASE"/part*.sh /mnt/install/
+    cp "$SCRIPT_BASE"/configs/* /mnt/install/configs/
+else  
+    curl -fsSL "$SCRIPT_BASE/part2-chroot.sh"              -o /mnt/install/part2-chroot.sh
+    curl -fsSL "$SCRIPT_BASE/part3-secureboot.sh"          -o /mnt/install/part3-secureboot.sh
+    curl -fsSL "$SCRIPT_BASE/part4-post-reboot.sh"         -o /mnt/install/part4-post-reboot.sh
+    curl -fsSL "$SCRIPT_BASE/configs/nftables.conf"        -o /mnt/install/configs/nftables.conf
+    curl -fsSL "$SCRIPT_BASE/configs/99-hardening.conf"    -o /mnt/install/configs/99-hardening.conf
+    curl -fsSL "$SCRIPT_BASE/configs/blacklist.conf"       -o /mnt/install/configs/blacklist.conf
+    curl -fsSL "$SCRIPT_BASE/configs/NetworkManager.conf"  -o /mnt/install/configs/NetworkManager.conf
+    curl -fsSL "$SCRIPT_BASE/configs/zz-sbctl-uki.hook"    -o /mnt/install/configs/zz-sbctl-uki.hook
+fi
+
+chmod +x /mnt/install/part*.sh
 
 # ------------------------------------------------------------------------------
 # PACMAN CONFIG
@@ -203,9 +238,4 @@ echo "[*] Part 1 complete."
 echo "[*] Entering chroot..."
 echo
 
-echo "[*] Fetching install scripts..."
-curl -fsSL "https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/part2-chroot.sh" -o /mnt/root/part2-chroot.sh
-chmod +x /mnt/root/part2-chroot.sh
-
-arch-chroot /mnt /root/part2-chroot.sh
-
+arch-chroot /mnt /install/part2-chroot.sh
