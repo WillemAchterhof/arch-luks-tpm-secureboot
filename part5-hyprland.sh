@@ -168,6 +168,8 @@ echo "[*] Copying your existing hyprland.conf..."
 
 sudo -u "$USERNAME" cp /install/hyprland.conf "/home/$USERNAME/.config/hypr/hyprland.conf"
 
+hyprctl reload
+
 # ------------------------------------------------------------------------------
 # DONE
 # ------------------------------------------------------------------------------
