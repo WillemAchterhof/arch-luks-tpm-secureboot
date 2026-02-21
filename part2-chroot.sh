@@ -95,24 +95,11 @@ passwd "$USERNAME"
 # MKINITCPIO
 # ------------------------------------------------------------------------------
 
-GPU_VENDOR=$(lspci | grep -i 'vga\|3d\|display' | head -1)
-
-if echo "$GPU_VENDOR" | grep -qi "amd"; then
-    GPU_MODULE="amdgpu"
-elif echo "$GPU_VENDOR" | grep -qi "nvidia"; then
-    GPU_MODULE="nvidia"
-elif echo "$GPU_VENDOR" | grep -qi "Intel"; then
-    GPU_MODULE="i915"
-else
-    GPU_MODULE=""
-fi
-
 echo "[*] Configuring mkinitcpio..."
-sed -i "s/^MODULES=.*/MODULES=($GPU_MODULE)/"                                                                                                         /etc/mkinitcpio.conf
-sed -i 's/^BINARIES=.*/BINARIES=()/'                                                                                                                  /etc/mkinitcpio.conf
-sed -i 's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt filesystems fsck)|'                                /etc/mkinitcpio.conf
-sed -i 's|^#*COMPRESSION=.*|COMPRESSION="zstd"|'                                                                                                      /etc/mkinitcpio.conf
-sed -i 's|^#*COMPRESSION_OPTIONS=.*|COMPRESSION_OPTIONS="-3"|'                                                                                        /etc/mkinitcpio.conf
+sed -i 's/^BINARIES=.*/BINARIES=()/'                                                                                    /etc/mkinitcpio.conf
+sed -i 's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt filesystems fsck)|'  /etc/mkinitcpio.conf
+sed -i 's|^#*COMPRESSION=.*|COMPRESSION="zstd"|'                                                                        /etc/mkinitcpio.conf
+sed -i 's|^#*COMPRESSION_OPTIONS=.*|COMPRESSION_OPTIONS="-3"|'                                                          /etc/mkinitcpio.conf
 
 echo "[*] Building kernel command line..."
 # Detect root partition fresh
