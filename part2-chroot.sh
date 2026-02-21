@@ -45,12 +45,12 @@ EOF
 
 echo "[*] Setting environment variables..."
 cat <<EOF > /etc/environment
-#TERMINAL=alacritty
+TERMINAL=alacritty
 EDITOR=nvim
 VISUAL=nvim
-#MOZ_ENABLE_WAYLAND=1
-#QT_QPA_PLATFORM=wayland
-#SDL_VIDEODRIVER=wayland
+MOZ_ENABLE_WAYLAND=1
+QT_QPA_PLATFORM=wayland
+SDL_VIDEODRIVER=wayland
 EOF
 
 # ------------------------------------------------------------------------------
