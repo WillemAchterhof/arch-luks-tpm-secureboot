@@ -17,7 +17,7 @@ echo
 
 read -rp "Enter user name: " USERNAME
 read -rp "Enter computer name: " HOSTNAME
-read -rp "Enter counteries for geograpical location of download mirrors: " COUNTRIES
+read -rp "Enter counteries for geographical location of download mirrors: " COUNTRIES
 
 # ------------------------------------------------------------------------------
 # SYSTEM CONFIGURATION
