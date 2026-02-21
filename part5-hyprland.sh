@@ -90,11 +90,31 @@ systemctl enable --now bluetooth
 # GPU / VIDEO STACK
 # ------------------------------------------------------------------------------
 
-echo "[*] Installing AMD GPU + Vulkan stack..."
+echo "[*] Installing GPU..."
 
-pacman -S --noconfirm \
-    mesa vulkan-radeon libva-mesa-driver \
-    lib32-mesa lib32-vulkan-radeon lib32-libva-mesa-driver
+GPU_VENDOR=$(lspci | grep -i 'vga\|3d\|display' | head -1)
+
+if echo "$GPU_VENDOR" | grep -qi "amd"; then
+    pacman -S --noconfirm \
+        mesa vulkan-radeon libva-mesa-driver \
+        lib32-mesa lib32-vulkan-radeon lib32-libva-mesa-driver
+
+elif echo "$GPU_VENDOR" | grep -qi "nvidia"; then
+    pacman -S --noconfirm \
+        nvidia-dkms nvidia-utils lib32-nvidia-utils \
+        nvidia-settings    echo
+        echo "  [!] NVIDIA detected - add nvidia-drm.modeset=1 to your kernel cmdline!"
+        echo "      Edit /etc/kernel/cmdline and rebuild the UKI with: mkinitcpio -P"
+        echo
+        read -rp "Press ENTER to continue..." _
+       
+elif echo "$GPU_VENDOR" | grep -qi "intel"; then
+    pacman -S --noconfirm \
+        mesa vulkan-intel libva-intel-driver \
+        lib32-mesa lib32-vulkan-intel
+else
+    echo "[!] GPU vendor not detected, skipping GPU drivers."
+fi
 
 # ------------------------------------------------------------------------------
 # FONTS
@@ -145,6 +165,16 @@ pacman -S --noconfirm qemu-full libvirt virt-manager
 systemctl enable --now libvirtd
 
 # ------------------------------------------------------------------------------
+# USER ENVIRONMENT SETUP 
+# ------------------------------------------------------------------------------ 
+
+echo echo "[*] Updating XDG user directories for $USERNAME..." 
+sudo -u "$USERNAME" xdg-user-dirs-update || true echo 
+
+echo "[*] Enabling WirePlumber user service for $USERNAME..." 
+sudo -u "$USERNAME" systemctl --user enable --now wireplumber || true
+
+# ------------------------------------------------------------------------------
 # UTILITIES
 # ------------------------------------------------------------------------------
 
@@ -167,8 +197,6 @@ sudo -u "$USERNAME" mkdir -p "/home/$USERNAME/.config/hypr"
 echo "[*] Copying your existing hyprland.conf..."
 
 sudo -u "$USERNAME" cp /install/hyprland.conf "/home/$USERNAME/.config/hypr/hyprland.conf"
-
-hyprctl reload
 
 # ------------------------------------------------------------------------------
 # DONE
