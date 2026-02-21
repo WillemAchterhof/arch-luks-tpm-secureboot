@@ -103,11 +103,11 @@ elif echo "$GPU_VENDOR" | grep -qi "nvidia"; then
     pacman -S --noconfirm \
         nvidia-dkms nvidia-utils lib32-nvidia-utils \
         nvidia-settings
-        echo
-        echo "  [!] NVIDIA detected - add nvidia-drm.modeset=1 to your kernel cmdline!"
-        echo "      Edit /etc/kernel/cmdline and rebuild the UKI with: mkinitcpio -P"
-        echo
-        read -rp "Press ENTER to continue..." _
+    echo
+    echo "  [!] NVIDIA detected - add nvidia-drm.modeset=1 to your kernel cmdline!"
+    echo "      Edit /etc/kernel/cmdline and rebuild the UKI with: mkinitcpio -P"
+    echo
+    read -rp "Press ENTER to continue..." _
        
 elif echo "$GPU_VENDOR" | grep -qi "intel"; then
     pacman -S --noconfirm \
