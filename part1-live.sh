@@ -220,7 +220,7 @@ EOF
 
 clear
 echo "================================================="
-echo "   IMPORTANT - SAVE THIS LUKS PASSWORD"
+echo "   IMPORTANT - SAVE THIS LUKS PASSWORD (In a password manager)"
 echo "================================================="
 echo
 echo "You need this for first boot: $LUKS_PASS" 
