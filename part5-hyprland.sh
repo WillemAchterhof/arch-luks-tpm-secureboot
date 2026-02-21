@@ -102,7 +102,8 @@ if echo "$GPU_VENDOR" | grep -qi "amd"; then
 elif echo "$GPU_VENDOR" | grep -qi "nvidia"; then
     pacman -S --noconfirm \
         nvidia-dkms nvidia-utils lib32-nvidia-utils \
-        nvidia-settings    echo
+        nvidia-settings
+        echo
         echo "  [!] NVIDIA detected - add nvidia-drm.modeset=1 to your kernel cmdline!"
         echo "      Edit /etc/kernel/cmdline and rebuild the UKI with: mkinitcpio -P"
         echo
@@ -168,16 +169,16 @@ systemctl enable --now libvirtd
 # USER ENVIRONMENT SETUP 
 # ------------------------------------------------------------------------------ 
 
-echo echo "[*] Updating XDG user directories for $USERNAME..." 
+echo "[*] Updating XDG user directories for $USERNAME..." 
 sudo -u "$USERNAME" xdg-user-dirs-update || true echo 
 
 echo "[*] Enabling WirePlumber user service for $USERNAME..." 
 sudo -u "$USERNAME" systemctl --user enable --now wireplumber || true
 
-sed -i '/^#TERMINAL=alacrittys/^#//' /etc/environment
-sed -i '/^#MOZ_ENABLE_WAYLAND=1/^#//' /etc/environment
-sed -i '/^#QT_QPA_PLATFORM=wayland/^#//' /etc/environment
-sed -i '/^#SDL_VIDEODRIVER=wayland/^#//' /etc/environment
+sed -i 's/^#TERMINAL=alacritty/TERMINAL=alacritty/' /etc/environment
+sed -i 's/^#MOZ_ENABLE_WAYLAND=1/MOZ_ENABLE_WAYLAND=1/' /etc/environment
+sed -i 's/^#QT_QPA_PLATFORM=wayland/QT_QPA_PLATFORM=wayland/' /etc/environment
+sed -i 's/^#SDL_VIDEODRIVER=wayland/SDL_VIDEODRIVER=wayland/' /etc/environment
 
 # ------------------------------------------------------------------------------
 # UTILITIES
@@ -188,8 +189,6 @@ echo "[*] Installing utilities..."
 pacman -S --noconfirm \
     alacritty btop fastfetch keepassxc \
     xdg-user-dirs xdg-utils
-
-sudo -u "$USERNAME" xdg-user-dirs-update
 
 # ------------------------------------------------------------------------------
 # COPY USER CONFIG (Hyprland)
