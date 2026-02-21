@@ -142,9 +142,9 @@ sudo -u "$USERNAME" yay -S --noconfirm protonup-qt
 
 echo "[*] Installing programming tools..."
 
-pacman -S --noconfirm dotnet-sdk code
+pacman -S --noconfirm dotnet-sdk
 
-sudo -u "$USERNAME" yay -S --noconfirm powershell-bin
+sudo -u "$USERNAME" yay -S --noconfirm powershell-bin visual-studio-code-bin
 
 # ------------------------------------------------------------------------------
 # MEDIA TOOLS
