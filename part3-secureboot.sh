@@ -22,8 +22,16 @@ EFI_DISK=$(blkid -s UUID -o device /dev/disk/by-label/ESP 2>/dev/null || \
 DISK=$(lsblk -no PKNAME "$EFI_DISK" | head -1)
 DISK="/dev/$DISK"
 
+EFI_PARTNUM=$(lsblk -no PARTNUM "$EFI_DISK")
+
 echo "[*] Detected disk: $DISK"
 echo "[*] Detected EFI partition: $EFI_DISK"
+echo "[*] Detected EFI partition Number: $EFI_PARTNUM"
+
+if [[ -z "$EFI_PARTNUM" ]]; then
+    echo "[!] Could not detect EFI partition number."
+    exit 1
+fi
 
 # ------------------------------------------------------------------------------
 # SBCTL STATUS
@@ -72,7 +80,7 @@ efibootmgr | awk '/Boot[0-9A-F]{4}\*?/ {print $1}' | \
 echo "[*] Creating Arch Linux boot entry..."
 efibootmgr --create \
   --disk "$DISK" \
-  --part 1 \
+  --part "$EFI_PARTNUM" \
   --label "Arch Linux" \
   --loader '\EFI\Linux\arch-linux.efi' \
   --unicode
