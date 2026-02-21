@@ -186,7 +186,7 @@ systemctl disable \
 # ------------------------------------------------------------------------------
 
 echo "[*] Writing firewall rules..."
-/install/configs/nftables.conf           /etc/nftables.conf
+cp /install/configs/nftables.conf         /etc/nftables.conf
 
 echo "[*] Writing sysctl hardening..."
 cp /install/configs/99-hardening.conf    /etc/sysctl.d/99-hardening.conf
