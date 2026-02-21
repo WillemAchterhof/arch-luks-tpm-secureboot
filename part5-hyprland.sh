@@ -173,7 +173,7 @@ echo "[*] Updating XDG user directories for $USERNAME..."
 sudo -u "$USERNAME" xdg-user-dirs-update || true
 
 echo "[*] Enabling WirePlumber user service for $USERNAME..." 
-sudo -u "$USERNAME" systemctl --user enable --now wireplumber || true
+systemctl --user enable --now wireplumber
 
 sed -i 's/^#TERMINAL=alacritty/TERMINAL=alacritty/' /etc/environment
 sed -i 's/^#MOZ_ENABLE_WAYLAND=1/MOZ_ENABLE_WAYLAND=1/' /etc/environment
