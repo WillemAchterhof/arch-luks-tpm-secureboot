@@ -17,7 +17,7 @@ echo
 
 read -rp "Enter user name: " USERNAME
 read -rp "Enter computer name: " HOSTNAME
-read -rp "Enter counteries for geograpical location of downlaod mirrors: " COUNTRIES
+read -rp "Enter counteries for geograpical location of download mirrors: " COUNTRIES
 
 # ------------------------------------------------------------------------------
 # SYSTEM CONFIGURATION
@@ -101,6 +101,8 @@ if echo "$GPU_VENDOR" | grep -qi "amd"; then
     GPU_MODULE="amdgpu"
 elif echo "$GPU_VENDOR" | grep -qi "nvidia"; then
     GPU_MODULE="nvidia"
+elif echo "$GPU_VENDOR" | grep -qi "Intel"; then
+    GPU_MODULE="i915"
 else
     GPU_MODULE=""
 fi
