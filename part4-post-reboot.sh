@@ -75,18 +75,6 @@ else
 fi
 
 # ------------------------------------------------------------------------------
-# USER ENVIRONMENT SETUP
-# ------------------------------------------------------------------------------
-
-echo
-echo "[*] Updating XDG user directories for $USERNAME..."
-sudo -u "$USERNAME" xdg-user-dirs-update || true
-
-echo
-echo "[*] Enabling WirePlumber user service for $USERNAME..."
-sudo -u "$USERNAME" systemctl --user enable --now wireplumber || true
-
-# ------------------------------------------------------------------------------
 # ROOT ACCOUNT HARDENING
 # ------------------------------------------------------------------------------
 
