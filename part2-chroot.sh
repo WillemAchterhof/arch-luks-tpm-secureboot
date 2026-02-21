@@ -137,7 +137,7 @@ EOF
 
 echo "[*] Installing pacman signing hook..."
 mkdir -p /etc/pacman.d/hooks
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/zz-sbctl-uki.hook -o /etc/pacman.d/hooks/zz-sbctl-uki.hook
+cp /install/configs/zz-sbctl-uki.hook    /etc/pacman.d/hooks/zz-sbctl-uki.hook
 
 # ------------------------------------------------------------------------------
 # SERVICES
@@ -155,7 +155,7 @@ systemctl enable systemd-timesyncd
 ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 echo "[*] Configuring NetworkManager..."
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/NetworkManager.conf -o /etc/NetworkManager/NetworkManager.conf
+cp /install/configs/NetworkManager.conf  /etc/NetworkManager/NetworkManager.conf
 
 mkdir -p /etc/NetworkManager/conf.d/
 cat <<'EOF' > /etc/NetworkManager/conf.d/20-mac-randomize.conf
@@ -186,13 +186,13 @@ systemctl disable \
 # ------------------------------------------------------------------------------
 
 echo "[*] Writing firewall rules..."
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/nftables.conf -o /etc/nftables.conf
+/install/configs/nftables.conf           /etc/nftables.conf
 
 echo "[*] Writing sysctl hardening..."
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/99-hardening.conf -o /etc/sysctl.d/99-hardening.conf
+cp /install/configs/99-hardening.conf    /etc/sysctl.d/99-hardening.conf
 
 echo "[*] Writing kernel module blacklist..."
-curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/configs/blacklist.conf -o /etc/modprobe.d/blacklist.conf
+cp /install/configs/blacklist.conf       /etc/modprobe.d/blacklist.conf
 
 echo "[*] Building UKI..."
 mkinitcpio -P
@@ -201,12 +201,8 @@ mkinitcpio -P
 # FETCH AND CHAIN INTO PART 3
 # ------------------------------------------------------------------------------
 
-echo "[*] Fetching Part 3 (Secure Boot)..."
-curl -fsSL "https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/part3-secureboot.sh" -o /root/part3-secureboot.sh
-chmod +x /root/part3-secureboot.sh
-
 echo
 echo "[*] Part 2 complete. Launching Part 3 (Secure Boot)..."
 echo
 
-bash /root/part3-secureboot.sh
+bash /install/part3-secureboot.sh
