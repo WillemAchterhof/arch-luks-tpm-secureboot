@@ -12,6 +12,16 @@ echo "================================================="
 echo
 
 # ------------------------------------------------------------------------------
+# CLEANUP TRAP
+# ------------------------------------------------------------------------------
+
+cleanup() {
+    umount -R /mnt 2>/dev/null || true
+    cryptsetup close cryptroot 2>/dev/null || true
+}
+trap 'cleanup' EXIT INT TERM
+
+# ------------------------------------------------------------------------------
 # NETWORK SETUP
 # ------------------------------------------------------------------------------
 
@@ -19,6 +29,11 @@ echo "[*] Enabling NTP..."
 timedatectl set-ntp true
 
 read -rp "Enter your timezone (example: Europe/Amsterdam): " TIMEZONE
+
+if ! timedatectl list-timezones | grep -qx "$TIMEZONE"; then
+    echo "[!] Invalid timezone: $TIMEZONE"
+    exit 1
+fi
 
 echo "[*] Setting timezone $TIMEZONE ..."
 timedatectl set-timezone "$TIMEZONE"
@@ -33,6 +48,12 @@ if [[ "${WiFi,,}" == "y" ]]; then
     if [[ -z "$ADAPTER" ]]; then
         echo "[!] No WiFi adapter detected."
         exit 1
+    fi
+
+    echo "[*] Detected adapter: $ADAPTER"
+    read -rp "Use this adapter? (Y/n): " CONFIRM_ADAPTER
+    if [[ "${CONFIRM_ADAPTER,,}" == "n" ]]; then
+        read -rp "Enter adapter name manually: " ADAPTER
     fi
 
     iwctl station "$ADAPTER" scan
@@ -51,7 +72,13 @@ echo "[*] Connection established."
 # ------------------------------------------------------------------------------
 # PACMAN & MIRRORS
 # ------------------------------------------------------------------------------
+
 read -rp "Enter your country for mirrors (example: Netherlands,Germany): " MIRROR_COUNTRIES
+
+if [[ -z "$MIRROR_COUNTRIES" ]]; then
+    MIRROR_COUNTRIES="Netherlands,Germany"
+    echo "[*] No input — defaulting to Netherlands,Germany"
+fi
 
 echo "[*] Configuring pacman..."
 sed -i \
@@ -82,8 +109,13 @@ read -rp "THIS WILL WIPE $DISK. Type YES to continue: " CONFIRM
 # DISK WIPE AND PARTITION
 # ------------------------------------------------------------------------------
 
+read -rp "Zero-wipe first 10MiB of disk? Slow but thorough (y/N): " DO_WIPE
+if [[ "${DO_WIPE,,}" == "y" ]]; then
+    echo "[*] Zeroing first 10MiB..."
+    dd if=/dev/zero of="$DISK" bs=1M count=10 conv=fsync status=progress
+fi
+
 echo "[*] Wiping disk..."
-dd if=/dev/zero of="$DISK" bs=1M count=10 conv=fsync status=progress
 wipefs --all --force "$DISK"
 sgdisk --zap-all "$DISK"
 partprobe "$DISK"
@@ -123,16 +155,6 @@ echo "[*] Opening encrypted container..."
 echo -n "$LUKS_PASS" | cryptsetup open "$ROOT_PART" cryptroot -
 
 # ------------------------------------------------------------------------------
-# CLEANUP TRAP
-# ------------------------------------------------------------------------------
-
-cleanup() {
-    umount -R /mnt 2>/dev/null ||true
-    cryptsetup close cryptroot 2>/dev/null || true
-}
-trap 'cleanup' ERR
-
-# ------------------------------------------------------------------------------
 # FILESYSTEMS AND MOUNT
 # ------------------------------------------------------------------------------
 
@@ -152,7 +174,9 @@ mount "$EFI_PART" /mnt/boot
 clear
 echo "================================================="
 echo "   IMPORTANT - SAVE THIS LUKS PASSWORD"
-echo "   Store it in your password manager NOW"
+echo "   If you lose this password, your data is"
+echo "   unrecoverable. Store it in your password"
+echo "   manager NOW before continuing."
 echo "================================================="
 echo
 echo "   $LUKS_PASS"
@@ -171,7 +195,7 @@ echo
 echo "[*] Fetching install scripts and configs..."
 echo
 
-SCRIPT_BASE="/run/media/arch/scripts"
+SCRIPT_BASE="${SCRIPT_BASE:-/run/media/arch/scripts}"
 
 if [[ ! -d "$SCRIPT_BASE" ]]; then
     echo "[!] Trusted script directory not found at $SCRIPT_BASE"
@@ -220,13 +244,16 @@ EOF
 # ------------------------------------------------------------------------------
 
 CPU_VENDOR=$(grep -m1 'vendor_id' /proc/cpuinfo | awk '{print $3}')
-if [[ "$CPU_VENDOR" == "GenuineIntel" ]]; then
-    UCODE="intel-ucode"
-else
-    UCODE="amd-ucode"
-fi
 
-echo "[*] Detected CPU: $CPU_VENDOR — installing $UCODE"
+case "$CPU_VENDOR" in
+    GenuineIntel) UCODE="intel-ucode" ;;
+    AuthenticAMD) UCODE="amd-ucode"   ;;
+    *)            UCODE=""
+                  echo "[!] Unknown CPU vendor: $CPU_VENDOR — skipping microcode"
+                  ;;
+esac
+
+echo "[*] Detected CPU: $CPU_VENDOR${UCODE:+ — installing $UCODE}"
 
 # ------------------------------------------------------------------------------
 # PACSTRAP
@@ -237,7 +264,7 @@ echo "[*] Installing base system..."
 pacstrap -K /mnt \
   base base-devel \
   linux linux-headers linux-firmware \
-  "$UCODE" \
+  ${UCODE:+"$UCODE"} \
   cryptsetup mkinitcpio \
   sbctl sbsigntools efibootmgr \
   tpm2-tools \
