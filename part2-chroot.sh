@@ -17,7 +17,7 @@ echo
 
 read -rp "Enter user name: " USERNAME
 read -rp "Enter computer name: " HOSTNAME
-read -rp "Enter counteries for geographical location of download mirrors: " COUNTRIES
+read -rp "Enter countries for geographical location of download mirrors: " COUNTRIES
 
 # ------------------------------------------------------------------------------
 # SYSTEM CONFIGURATION
@@ -87,7 +87,7 @@ Defaults use_pty
 EOF
 chmod 440 /etc/sudoers.d/hardening
 
-echo "[*] Creating user $USERNAME ..."
+echo "[*] Creating user $USERNAME..."
 useradd -m -G wheel -s /usr/bin/zsh "$USERNAME"
 passwd "$USERNAME"
 
@@ -102,8 +102,6 @@ sed -i 's|^#*COMPRESSION=.*|COMPRESSION="zstd"|'                                
 sed -i 's|^#*COMPRESSION_OPTIONS=.*|COMPRESSION_OPTIONS="-3"|'                                                          /etc/mkinitcpio.conf
 
 echo "[*] Building kernel command line..."
-# Detect root partition fresh
-ROOT_PART=$(blkid -L archroot 2>/dev/null || lsblk -rno NAME,LABEL | awk '/archroot/ {print "/dev/"$1}')
 LUKS_UUID=$(blkid -s UUID -o value "$(cryptsetup status cryptroot | awk '/device:/ {print $2}')")
 
 mkdir -p /etc/kernel
@@ -126,7 +124,7 @@ EOF
 
 echo "[*] Installing pacman signing hook..."
 mkdir -p /etc/pacman.d/hooks
-cp /install/configs/zz-sbctl-uki.hook    /etc/pacman.d/hooks/zz-sbctl-uki.hook
+cp /install/configs/system/zz-sbctl-uki.hook  /etc/pacman.d/hooks/zz-sbctl-uki.hook
 
 # ------------------------------------------------------------------------------
 # SERVICES
@@ -144,7 +142,7 @@ systemctl enable systemd-timesyncd
 ln -sf /run/systemd/resolve/stub-resolv.conf /etc/resolv.conf
 
 echo "[*] Configuring NetworkManager..."
-cp /install/configs/NetworkManager.conf  /etc/NetworkManager/NetworkManager.conf
+cp /install/configs/system/NetworkManager.conf  /etc/NetworkManager/NetworkManager.conf
 
 mkdir -p /etc/NetworkManager/conf.d/
 cat <<'EOF' > /etc/NetworkManager/conf.d/20-mac-randomize.conf
@@ -175,19 +173,19 @@ systemctl disable \
 # ------------------------------------------------------------------------------
 
 echo "[*] Writing firewall rules..."
-cp /install/configs/nftables.conf         /etc/nftables.conf
+cp /install/configs/system/nftables.conf      /etc/nftables.conf
 
 echo "[*] Writing sysctl hardening..."
-cp /install/configs/99-hardening.conf    /etc/sysctl.d/99-hardening.conf
+cp /install/configs/system/99-hardening.conf  /etc/sysctl.d/99-hardening.conf
 
 echo "[*] Writing kernel module blacklist..."
-cp /install/configs/blacklist.conf       /etc/modprobe.d/blacklist.conf
+cp /install/configs/system/blacklist.conf     /etc/modprobe.d/blacklist.conf
 
 echo "[*] Building UKI..."
 mkinitcpio -P
 
 # ------------------------------------------------------------------------------
-# FETCH AND CHAIN INTO PART 3
+# CHAIN INTO PART 3
 # ------------------------------------------------------------------------------
 
 echo

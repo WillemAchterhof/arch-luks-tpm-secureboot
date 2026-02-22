@@ -2,13 +2,13 @@
 set -euo pipefail
 
 # ==============================================================================
-#  Arch Linux Secure Install - Part 5 (Hyprland Desktop Setup)
-#  Run this AFTER Part 4, inside your fully booted system
+#  Arch Linux Secure Install - Part 6 (Hyprland Desktop Setup)
+#  Run this AFTER Part 5, as root (sudo)
 # ==============================================================================
 
 clear
 echo "================================================="
-echo "   Arch Linux Secure Installation - Part 5"
+echo "   Arch Linux Secure Installation - Part 6"
 echo "   Hyprland Desktop Environment Setup"
 echo "================================================="
 echo
@@ -28,6 +28,8 @@ if ! id "$USERNAME" &>/dev/null; then
     echo "[!] User '$USERNAME' does not exist."
     exit 1
 fi
+
+HOME_DIR="/home/$USERNAME"
 
 # ------------------------------------------------------------------------------
 # UPDATE
@@ -182,19 +184,40 @@ sudo -u "$USERNAME" xdg-user-dirs-update || true
 
 echo "[*] Enabling Wayland environment variables..."
 
-sed -i 's/^#TERMINAL=alacritty/TERMINAL=alacritty/' /etc/environment
+sed -i 's/^#TERMINAL=alacritty/TERMINAL=alacritty/'     /etc/environment
 sed -i 's/^#MOZ_ENABLE_WAYLAND=1/MOZ_ENABLE_WAYLAND=1/' /etc/environment
 sed -i 's/^#QT_QPA_PLATFORM=wayland/QT_QPA_PLATFORM=wayland/' /etc/environment
 sed -i 's/^#SDL_VIDEODRIVER=wayland/SDL_VIDEODRIVER=wayland/' /etc/environment
 
 # ------------------------------------------------------------------------------
-# COPY USER CONFIGS (Hyprland)
+# COPY THEME CONFIGS
 # ------------------------------------------------------------------------------
 
-echo "[*] Copying Hyprland config..."
+echo "[*] Copying theme configs..."
 
-sudo -u "$USERNAME" mkdir -p "/home/$USERNAME/.config/hypr"
-sudo -u "$USERNAME" cp /install/configs/hyprland.conf "/home/$USERNAME/.config/hypr/hyprland.conf"
+# Hyprland
+sudo -u "$USERNAME" mkdir -p "$HOME_DIR/.config/hypr"
+cp /install/configs/themes/hyprland/hyprland.conf  "$HOME_DIR/.config/hypr/hyprland.conf"
+chown "$USERNAME:$USERNAME" "$HOME_DIR/.config/hypr/hyprland.conf"
+
+# Waybar
+sudo -u "$USERNAME" mkdir -p "$HOME_DIR/.config/waybar"
+cp /install/configs/themes/waybar/config.jsonc  "$HOME_DIR/.config/waybar/config.jsonc"
+cp /install/configs/themes/waybar/style.css     "$HOME_DIR/.config/waybar/style.css"
+chown "$USERNAME:$USERNAME" "$HOME_DIR/.config/waybar/"*
+
+# Rofi
+sudo -u "$USERNAME" mkdir -p "$HOME_DIR/.config/rofi"
+cp /install/configs/themes/rofi/config.rasi       "$HOME_DIR/.config/rofi/config.rasi"
+cp /install/configs/themes/rofi/tokyonight.rasi   "$HOME_DIR/.config/rofi/tokyonight.rasi"
+chown "$USERNAME:$USERNAME" "$HOME_DIR/.config/rofi/"*
+
+# Alacritty
+sudo -u "$USERNAME" mkdir -p "$HOME_DIR/.config/alacritty"
+cp /install/configs/themes/alacritty/alacritty.toml  "$HOME_DIR/.config/alacritty/alacritty.toml"
+chown "$USERNAME:$USERNAME" "$HOME_DIR/.config/alacritty/alacritty.toml"
+
+echo "[*] Theme configs copied."
 
 # ------------------------------------------------------------------------------
 # DONE
@@ -202,11 +225,16 @@ sudo -u "$USERNAME" cp /install/configs/hyprland.conf "/home/$USERNAME/.config/h
 
 echo
 echo "================================================="
-echo "   Part 5 Complete — Hyprland Installed"
+echo "   Part 6 Complete — Hyprland Installed"
 echo "================================================="
 echo
-echo "  Next step:"
-echo "  Run Part 6 for user environment setup:"
-echo "  sudo bash /install/part6-user-setup.sh"
+echo "  Configs copied for:"
+echo "  - Hyprland"
+echo "  - Waybar"
+echo "  - Rofi"
+echo "  - Alacritty"
+echo
+echo "  Start Hyprland from TTY with:"
+echo "    exec Hyprland"
 echo
 echo "================================================="

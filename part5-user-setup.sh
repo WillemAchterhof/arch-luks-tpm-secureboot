@@ -2,14 +2,14 @@
 set -euo pipefail
 
 # ==============================================================================
-#  Arch Linux Secure Install - Part 6 (User Environment Setup)
-#  Run this AFTER Part 5, as root (sudo)
-#  Sets up shell, editor configs, USBGuard, Plymouth, extra tools
+#  Arch Linux Secure Install - Part 5 (User Environment Setup)
+#  Run this AFTER Part 4, as root (sudo)
+#  Sets up shell, editor configs, USBGuard, Plymouth
 # ==============================================================================
 
 clear
 echo "================================================="
-echo "   Arch Linux Secure Installation - Part 6"
+echo "   Arch Linux Secure Installation - Part 5"
 echo "   User Environment & Security Setup"
 echo "================================================="
 echo
@@ -33,19 +33,6 @@ fi
 HOME_DIR="/home/$USERNAME"
 
 # ------------------------------------------------------------------------------
-# EXTRA PACKAGES
-# ------------------------------------------------------------------------------
-
-echo "[*] Installing extra packages..."
-
-pacman -S --noconfirm \
-    zsh-autosuggestions \
-    binutils \
-    inotify-tools \
-    usbguard \
-    plymouth
-
-# ------------------------------------------------------------------------------
 # WIREPLUMBER USER SERVICE
 # ------------------------------------------------------------------------------
 
@@ -58,16 +45,15 @@ sudo -u "$USERNAME" systemctl --user enable --now wireplumber || true
 
 echo "[*] Setting up Zsh for $USERNAME..."
 
-# Copy zsh config from /install/configs if it exists, otherwise create a base one
-if [[ -f /install/configs/.zshrc ]]; then
-    cp /install/configs/.zshrc "$HOME_DIR/.zshrc"
+if [[ -f /install/configs/shell/.zshrc ]]; then
+    cp /install/configs/shell/.zshrc "$HOME_DIR/.zshrc"
     chown "$USERNAME:$USERNAME" "$HOME_DIR/.zshrc"
     echo "[*] Copied .zshrc from install configs."
 else
     echo "[*] No .zshrc found in install configs, writing base config..."
     cat > "$HOME_DIR/.zshrc" << 'EOF'
 # ==============================================================================
-# Zsh Configuration - Tokyo Night
+# Zsh Configuration
 # ==============================================================================
 
 # History
@@ -88,7 +74,7 @@ alias grep='grep --color=auto'
 alias vim='nvim'
 alias vi='nvim'
 
-# Prompt (simple, replace with starship or p10k later)
+# Prompt
 autoload -Uz promptinit
 promptinit
 prompt walters
@@ -104,18 +90,17 @@ echo "[*] Setting up Neovim for $USERNAME..."
 
 sudo -u "$USERNAME" mkdir -p "$HOME_DIR/.config/nvim"
 
-if [[ -f /install/configs/init.lua ]]; then
-    cp /install/configs/init.lua "$HOME_DIR/.config/nvim/init.lua"
-    chown "$USERNAME:$USERNAME" "$HOME_DIR/.config/nvim/init.lua"
+if [[ -f /install/configs/editor/init.lua ]]; then
+    cp /install/configs/editor/init.lua "$HOME_DIR/.config/nvim/init.lua"
+    chown -R "$USERNAME:$USERNAME" "$HOME_DIR/.config/nvim"
     echo "[*] Copied init.lua from install configs."
 else
     echo "[*] No init.lua found in install configs, writing base config..."
     cat > "$HOME_DIR/.config/nvim/init.lua" << 'EOF'
 -- ==============================================================================
--- Neovim Base Config - Tokyo Night
+-- Neovim Base Config
 -- ==============================================================================
 
--- Basic settings
 vim.opt.number = true
 vim.opt.relativenumber = true
 vim.opt.tabstop = 4
@@ -130,10 +115,8 @@ vim.opt.signcolumn = "yes"
 vim.opt.updatetime = 100
 vim.opt.mouse = "a"
 
--- Leader key
 vim.g.mapleader = " "
 
--- Basic keymaps
 vim.keymap.set("n", "<leader>e", vim.cmd.Ex)
 vim.keymap.set("n", "<C-s>", "<cmd>w<cr>")
 vim.keymap.set("n", "<C-q>", "<cmd>q<cr>")
@@ -178,7 +161,7 @@ echo
 echo "  List all devices:"
 echo "    usbguard list-devices"
 echo
-echo "  Allow a device permanently (no password needed again):"
+echo "  Allow a device permanently:"
 echo "    usbguard allow-device -p <id>"
 echo
 echo "  Block a device:"
@@ -187,21 +170,22 @@ echo
 read -rp "Press ENTER to continue..." _
 
 # ------------------------------------------------------------------------------
-# PLYMOUTH THEME
+# PLYMOUTH
 # ------------------------------------------------------------------------------
 
 echo "[*] Configuring Plymouth..."
 
-# Add plymouth to mkinitcpio hooks
 sed -i 's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt plymouth filesystems fsck)|' /etc/mkinitcpio.conf
 
-# Set a theme - bgrt uses OEM logo, fallback to spinner
 if plymouth-set-default-theme bgrt 2>/dev/null; then
     echo "[*] Plymouth theme set to bgrt (OEM logo)."
 else
     plymouth-set-default-theme spinner
     echo "[*] Plymouth theme set to spinner."
 fi
+
+echo "[*] Adding quiet splash to kernel cmdline..."
+sed -i 's/^rd\.luks/quiet splash rd.luks/' /etc/kernel/cmdline
 
 echo "[*] Rebuilding UKI with Plymouth..."
 mkinitcpio -P
@@ -212,15 +196,15 @@ mkinitcpio -P
 
 echo
 echo "================================================="
-echo "   Part 6 Complete"
+echo "   Part 5 Complete"
 echo "================================================="
 echo
 echo "  What was set up:"
-echo "  - Zsh with autosuggestions"
-echo "  - Neovim base config"
+echo "  - Zsh config"
+echo "  - Neovim config"
 echo "  - USBGuard with current devices whitelisted"
 echo "  - Plymouth boot splash"
 echo
-echo "  Reboot to confirm Plymouth boot splash works."
+echo "  Next step: sudo bash /install/part6-hyprland.sh"
 echo
 echo "================================================="
