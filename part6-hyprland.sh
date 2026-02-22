@@ -67,7 +67,6 @@ pacman -S --noconfirm \
     thunar thunar-archive-plugin \
     polkit-kde-agent \
     xdg-desktop-portal xdg-desktop-portal-hyprland \
-    wofi \
     ttf-font-awesome papirus-icon-theme
 
 sudo -u "$USERNAME" yay -S --noconfirm rofi-wayland
@@ -174,6 +173,9 @@ echo "[*] Installing utilities..."
 
 pacman -S --noconfirm \
     alacritty btop fastfetch keepassxc \
+    zsh zsh-completions zsh-autosuggestions \
+    neovim \
+
     xdg-user-dirs xdg-utils
 
 sudo -u "$USERNAME" xdg-user-dirs-update || true

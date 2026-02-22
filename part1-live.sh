@@ -64,12 +64,9 @@ reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
 # SCRIPT SOURCE DETECTION
 # ------------------------------------------------------------------------------
 
-if [[ -d "/run/media/arch/scripts" ]]; then
-    SCRIPT_BASE="/run/media/arch/scripts"
-    echo "[*] Using local USB scripts..."
-else
-    SCRIPT_BASE="https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main"
-    echo "[*] Using GitHub scripts..."
+if [[ ! -d "/run/media/arch/scripts" ]]; then
+    echo "[!] Scripts must be run from trusted USB."
+    exit 1
 fi
 
 export SCRIPT_BASE
@@ -94,6 +91,7 @@ read -rp "THIS WILL WIPE $DISK. Type YES to continue: " CONFIRM
 # ------------------------------------------------------------------------------
 
 echo "[*] Wiping disk..."
+dd if=dev/zero of="$DISK" bs=1M count=10
 wipefs --all --force "$DISK"
 sgdisk --zap-all "$DISK"
 partprobe "$DISK"
@@ -202,12 +200,10 @@ pacstrap -K /mnt \
   apparmor nftables \
   networkmanager iwd \
   sudo \
-  zsh zsh-completions zsh-autosuggestions \
   man-db \
   git \
   binutils \
   inotify-tools \
-  neovim \
   iproute2 iputils \
   reflector \
   libpwquality \
