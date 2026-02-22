@@ -120,6 +120,16 @@ echo "[*] Opening encrypted container..."
 echo -n "$LUKS_PASS" | cryptsetup open "$ROOT_PART" cryptroot -
 
 # ------------------------------------------------------------------------------
+# CLEANUP TRAP
+# ------------------------------------------------------------------------------
+
+cleanup() {
+    umount -R /mnt 2>/dev/null ||true
+    cryptsetup close cryptroot 2>/dev/null || true
+}
+trap 'cleanup' ERR
+
+# ------------------------------------------------------------------------------
 # FILESYSTEMS AND MOUNT
 # ------------------------------------------------------------------------------
 
@@ -131,16 +141,6 @@ echo "[*] Mounting..."
 mount /dev/mapper/cryptroot /mnt
 mkdir -p /mnt/boot
 mount "$EFI_PART" /mnt/boot
-
-# ------------------------------------------------------------------------------
-# CLEANUP TRAP
-# ------------------------------------------------------------------------------
-
-cleanup() {
-    umount -R /mnt 2>/dev/null ||true
-    cryptsetup close cryptroot 2>/dev/null || true
-}
-trap 'cleanup' ERR
 
 # ------------------------------------------------------------------------------
 # DISPLAY LUKS PASSWORD
