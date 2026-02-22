@@ -1,0 +1,125 @@
+/*
+ * Tokyonight colorscheme for rofi
+ */
+
+* {
+    bg:      #24283b;
+    hv:      #9274ca;
+    primary: #C5C8C6;
+    kl:      #7aa2f7;
+    black:   #000000;
+
+    font:             "Monospace 11";
+    background-color: @bg;
+    border:           0px;
+}
+
+window {
+    width:            700;
+    orientation:      horizontal;
+    location:         center;
+    anchor:           center;
+    background-color: #24283bf2;
+    border-color:     @primary;
+    border:           3px;
+    border-radius:    6px;
+    spacing:          0;
+    children:         [ mainbox ];
+}
+
+mainbox {
+    spacing:  0;
+    children: [ inputbar, message, listview ];
+}
+
+inputbar {
+    text-color:   @kl;
+    padding:      11px;
+    border:       0 0 2px 0;
+    border-color: @primary;
+}
+
+message {
+    padding: 0;
+}
+
+textbox {
+    text-color: @kl;
+    padding:    10px;
+}
+
+entry, prompt, case-indicator {
+    text-font:  inherit;
+    text-color: inherit;
+}
+
+entry {
+    cursor: pointer;
+}
+
+prompt {
+    margin: 0px 5px 0px 0px;
+}
+
+listview {
+    layout:  vertical;
+    padding: 8px;
+    lines:   12;
+    columns: 1;
+    dynamic: false;
+}
+
+element {
+    padding:        2px;
+    vertical-align: 1;
+    text-color:     @kl;
+    font:           inherit;
+}
+
+element-text {
+    background-color: inherit;
+    text-color:       inherit;
+}
+
+element-icon {
+    background-color: inherit;
+    text-color:       inherit;
+}
+
+element selected.normal {
+    text-color:       @black;
+    background-color: @hv;
+}
+
+element normal.active {
+    background-color: @hv;
+    text-color:       @black;
+}
+
+element normal.urgent {
+    background-color: @primary;
+    text-color:       @black;
+}
+
+element selected.active {
+    background-color: @hv;
+    text-color:       @bg;
+}
+
+button {
+    padding:          6px;
+    text-color:       @primary;
+    horizontal-align: 0.5;
+    border:           2px 0px 2px 2px;
+    border-radius:    4px 0px 0px 4px;
+    border-color:     @primary;
+}
+
+button selected.normal {
+    border:       2px 0px 2px 2px;
+    border-color: @primary;
+}
+
+scrollbar {
+    enabled: true;
+}
