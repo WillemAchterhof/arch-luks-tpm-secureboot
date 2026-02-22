@@ -12,7 +12,7 @@ echo "================================================="
 echo
 
 # ------------------------------------------------------------------------------
-# PREPARATION
+# NETWORK SETUP
 # ------------------------------------------------------------------------------
 
 echo "[*] Enabling NTP..."
@@ -29,20 +29,36 @@ if [[ "${WiFi,,}" == "y" ]]; then
     ADAPTER=$(iwctl device list | awk '/station/ {print $2; exit}')
 
     if [[ -z "$ADAPTER" ]]; then
-        echo "No WiFi adapter detected."
+        echo "[!] No WiFi adapter detected."
         exit 1
     fi
 
     iwctl station "$ADAPTER" scan
     iwctl station "$ADAPTER" get-networks
 
-    read -rp "Enter SSID: "  SSID
+    read -rp "Enter SSID: " SSID
     read -rsp "Enter WiFi Password: " WiFi_Password && echo
     iwctl --passphrase "$WiFi_Password" station "$ADAPTER" connect "$SSID"
+    unset WiFi_Password
 fi
 
-ping -c 3 archlinux.org || { echo "Network failed."; exit 1; }
-echo "Connection established"
+echo "[*] Verifying network connectivity..."
+ping -c 3 archlinux.org || { echo "[!] Network failed."; exit 1; }
+echo "[*] Connection established."
+
+# ------------------------------------------------------------------------------
+# PACMAN & MIRRORS
+# ------------------------------------------------------------------------------
+
+echo "[*] Configuring pacman..."
+sed -i \
+  -e 's/^ParallelDownloads =.*/ParallelDownloads = 50/' \
+  -e 's/^#Color/Color/' \
+  /etc/pacman.conf
+
+echo "[*] Selecting mirrors..."
+reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
+  --save /etc/pacman.d/mirrorlist
 
 # ------------------------------------------------------------------------------
 # SCRIPT SOURCE DETECTION
@@ -56,6 +72,8 @@ else
     echo "[*] Using GitHub scripts..."
 fi
 
+export SCRIPT_BASE
+
 # ------------------------------------------------------------------------------
 # DISK SELECTION
 # ------------------------------------------------------------------------------
@@ -64,7 +82,7 @@ lsblk -o NAME,SIZE,TYPE,MOUNTPOINT
 read -rp "Enter target disk (example: /dev/nvme0n1): " DISK
 
 if [[ ! -b "$DISK" ]]; then
-    echo "Invalid disk."
+    echo "[!] Invalid disk."
     exit 1
 fi
 
@@ -72,7 +90,7 @@ read -rp "THIS WILL WIPE $DISK. Type YES to continue: " CONFIRM
 [[ "$CONFIRM" == "YES" ]] || exit 1
 
 # ------------------------------------------------------------------------------
-# DISK PREPARATION
+# DISK WIPE AND PARTITION
 # ------------------------------------------------------------------------------
 
 echo "[*] Wiping disk..."
@@ -82,7 +100,7 @@ partprobe "$DISK"
 
 echo "[*] Creating partitions..."
 sgdisk --new=1:0:+1024MiB --typecode=1:EF00 --change-name=1:"EFI System Partition" "$DISK"
-sgdisk --new=2:0:0       --typecode=2:8300 --change-name=2:"Encrypted Root"       "$DISK"
+sgdisk --new=2:0:0        --typecode=2:8300 --change-name=2:"Encrypted Root"        "$DISK"
 partprobe "$DISK"
 
 if [[ "$DISK" =~ nvme[0-9]n[0-9]$ || "$DISK" =~ mmcblk[0-9]$ ]]; then
@@ -115,7 +133,7 @@ echo "[*] Opening encrypted container..."
 echo -n "$LUKS_PASS" | cryptsetup open "$ROOT_PART" cryptroot -
 
 # ------------------------------------------------------------------------------
-# FILESYSTEMS
+# FILESYSTEMS AND MOUNT
 # ------------------------------------------------------------------------------
 
 echo "[*] Creating filesystems..."
@@ -128,44 +146,35 @@ mkdir -p /mnt/boot
 mount "$EFI_PART" /mnt/boot
 
 # ------------------------------------------------------------------------------
-# COPYING INSTALL SCRIPTS
+# DISPLAY LUKS PASSWORD
 # ------------------------------------------------------------------------------
 
-echo "[*] Copying install scripts..."
-mkdir -p /mnt/install/configs
-
-if [[ "$SCRIPT_BASE" == /* ]]; then
-    cp "$SCRIPT_BASE"/part*.sh /mnt/install/
-    cp "$SCRIPT_BASE"/configs/* /mnt/install/configs/
-else  
-    curl -fsSL "$SCRIPT_BASE/part2-chroot.sh"              -o /mnt/install/part2-chroot.sh
-    curl -fsSL "$SCRIPT_BASE/part3-secureboot.sh"          -o /mnt/install/part3-secureboot.sh
-    curl -fsSL "$SCRIPT_BASE/part4-post-reboot.sh"         -o /mnt/install/part4-post-reboot.sh
-    curl -fsSL "$SCRIPT_BASE/part5-hyprland.sh"            -o /mnt/install/part5-hyprland.sh
-    curl -fsSL "$SCRIPT_BASE/configs/nftables.conf"        -o /mnt/install/configs/nftables.conf
-    curl -fsSL "$SCRIPT_BASE/configs/99-hardening.conf"    -o /mnt/install/configs/99-hardening.conf
-    curl -fsSL "$SCRIPT_BASE/configs/blacklist.conf"       -o /mnt/install/configs/blacklist.conf
-    curl -fsSL "$SCRIPT_BASE/configs/NetworkManager.conf"  -o /mnt/install/configs/NetworkManager.conf
-    curl -fsSL "$SCRIPT_BASE/configs/zz-sbctl-uki.hook"    -o /mnt/install/configs/zz-sbctl-uki.hook
-    curl -fsSL "$SCRIPT_BASE/configs/hyprland.conf"        -o /mnt/install/configs/hyprland.conf
-fi
-
-chmod +x /mnt/install/part*.sh
+clear
+echo "================================================="
+echo "   IMPORTANT - SAVE THIS LUKS PASSWORD"
+echo "   Store it in your password manager NOW"
+echo "================================================="
+echo
+echo "   $LUKS_PASS"
+echo
+echo "================================================="
+echo
+read -rp "Type YES after saving it: " CONFIRM2
+[[ "$CONFIRM2" == "YES" ]] || exit 1
+unset LUKS_PASS
 
 # ------------------------------------------------------------------------------
-# PACMAN CONFIG
+# GET SCRIPTS - /mnt is now mounted, safe to copy
 # ------------------------------------------------------------------------------
 
-echo "[*] Configuring pacman..."
-sed -i 's/^ParallelDownloads =.*/ParallelDownloads = 50/' /etc/pacman.conf
+echo
+echo "[*] Fetching install scripts and configs..."
+echo
 
-echo "[*] Selecting mirrors..."
-reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
-  --save /etc/pacman.d/mirrorlist
-
+bash "$SCRIPT_BASE/get-scripts.sh"
 
 # ------------------------------------------------------------------------------
-# Retrieve Chipset
+# CPU DETECTION
 # ------------------------------------------------------------------------------
 
 CPU_VENDOR=$(grep -m1 'vendor_id' /proc/cpuinfo | awk '{print $3}')
@@ -175,6 +184,7 @@ else
     UCODE="amd-ucode"
 fi
 
+echo "[*] Detected CPU: $CPU_VENDOR — installing $UCODE"
 
 # ------------------------------------------------------------------------------
 # PACSTRAP
@@ -185,21 +195,24 @@ echo "[*] Installing base system..."
 pacstrap -K /mnt \
   base base-devel \
   linux linux-headers linux-firmware \
-  $UCODE \
+  "$UCODE" \
   cryptsetup mkinitcpio \
   sbctl sbsigntools efibootmgr \
   tpm2-tools \
   apparmor nftables \
   networkmanager iwd \
   sudo \
-  zsh zsh-completions \
+  zsh zsh-completions zsh-autosuggestions \
   man-db \
   git \
+  binutils \
+  inotify-tools \
   neovim \
   iproute2 iputils \
   reflector \
   libpwquality \
   polkit \
+  usbguard \
   tar gzip unzip p7zip
 
 # ------------------------------------------------------------------------------
@@ -217,27 +230,11 @@ UUID=$EFI_UUID   /boot  vfat  rw,noatime,fmask=0077,dmask=0077  0 2
 EOF
 
 # ------------------------------------------------------------------------------
-# STORE LUKS PASSWORD
+# CHAIN INTO PART 2
 # ------------------------------------------------------------------------------
 
-clear
-echo "================================================="
-echo "   IMPORTANT - SAVE THIS LUKS PASSWORD (In a password manager)"
-echo "================================================="
 echo
-echo "You need this for first boot: $LUKS_PASS" 
-echo
-echo "================================================="
-echo
-read -rp "Type YES after saving it: " CONFIRM2
-[[ "$CONFIRM2" == "YES" ]] || exit 1
-
-# Clear variable from memory
-unset LUKS_PASS
-
-echo
-echo "[*] Part 1 complete."
-echo "[*] Entering chroot..."
+echo "[*] Part 1 complete. Entering chroot..."
 echo
 
 arch-chroot /mnt /install/part2-chroot.sh
