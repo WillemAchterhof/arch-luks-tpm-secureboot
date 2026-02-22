@@ -61,17 +61,6 @@ reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
   --save /etc/pacman.d/mirrorlist
 
 # ------------------------------------------------------------------------------
-# SCRIPT SOURCE DETECTION
-# ------------------------------------------------------------------------------
-
-if [[ ! -d "/run/media/arch/scripts" ]]; then
-    echo "[!] Scripts must be run from trusted USB."
-    exit 1
-fi
-
-export SCRIPT_BASE
-
-# ------------------------------------------------------------------------------
 # DISK SELECTION
 # ------------------------------------------------------------------------------
 
@@ -91,7 +80,7 @@ read -rp "THIS WILL WIPE $DISK. Type YES to continue: " CONFIRM
 # ------------------------------------------------------------------------------
 
 echo "[*] Wiping disk..."
-dd if=dev/zero of="$DISK" bs=1M count=10
+dd if=/dev/zero of="$DISK" bs=1M count=10 conv=fsync status=progress
 wipefs --all --force "$DISK"
 sgdisk --zap-all "$DISK"
 partprobe "$DISK"
@@ -144,6 +133,16 @@ mkdir -p /mnt/boot
 mount "$EFI_PART" /mnt/boot
 
 # ------------------------------------------------------------------------------
+# CLEANUP TRAP
+# ------------------------------------------------------------------------------
+
+cleanup() {
+    umount -R /mnt 2>/dev/null ||true
+    cryptsetup close cryptroot 2>/dev/null || true
+}
+trap cleanup EXIT
+
+# ------------------------------------------------------------------------------
 # DISPLAY LUKS PASSWORD
 # ------------------------------------------------------------------------------
 
@@ -162,6 +161,15 @@ read -rp "Type YES after saving it: " CONFIRM2
 unset LUKS_PASS
 
 # ------------------------------------------------------------------------------
+# SCRIPT SOURCE DETECTION
+# ------------------------------------------------------------------------------
+
+if [[ ! -d "/run/media/arch/scripts" ]]; then
+    echo "[!] Scripts must be run from trusted USB."
+    exit 1
+fi
+
+# ------------------------------------------------------------------------------
 # GET SCRIPTS - /mnt is now mounted, safe to copy
 # ------------------------------------------------------------------------------
 
@@ -169,7 +177,35 @@ echo
 echo "[*] Fetching install scripts and configs..."
 echo
 
-bash "$SCRIPT_BASE/get-scripts.sh"
+# ------------------------------------------------------------------------------
+# CREATE DIRECTORY STRUCTURE
+# ------------------------------------------------------------------------------
+
+echo "[*] Creating directory structure..."
+
+mkdir -p /mnt/install/configs/system
+mkdir -p /mnt/install/configs/shell
+mkdir -p /mnt/install/configs/editor
+mkdir -p /mnt/install/configs/themes/waybar
+mkdir -p /mnt/install/configs/themes/rofi
+mkdir -p /mnt/install/configs/themes/alacritty
+mkdir -p /mnt/install/configs/themes/hyprland
+
+# ------------------------------------------------------------------------------
+# COPY
+# ------------------------------------------------------------------------------
+
+if [[ "$SCRIPT_BASE" == /* ]]; then
+    echo "[*] Copying from USB..."
+
+    cp -r "$SCRIPT_BASE"/install/part*.sh            \    /mnt/install/
+    cp -r  "$SCRIPT_BASE"/configs/system/*           \    /mnt/install/configs/system/
+    cp -r  "$SCRIPT_BASE"/configs/shell/*            \    /mnt/install/configs/shell/
+    cp -r  "$SCRIPT_BASE"/configs/editor/*           \    /mnt/install/configs/editor/
+    cp -r  "$SCRIPT_BASE"/configs/themes/waybar/*    \    /mnt/install/configs/themes/waybar/
+    cp -r  "$SCRIPT_BASE"/configs/themes/rofi/*      \    /mnt/install/configs/themes/rofi/
+    cp -r  "$SCRIPT_BASE"/configs/themes/alacritty/* \    /mnt/install/configs/themes/alacritty/
+    cp -r  "$SCRIPT_BASE"/configs/themes/hyprland/*  \    /mnt/install/configs/themes/hyprland/
 
 # ------------------------------------------------------------------------------
 # CPU DETECTION
