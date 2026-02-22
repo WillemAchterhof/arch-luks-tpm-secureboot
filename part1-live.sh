@@ -174,6 +174,14 @@ echo
 echo "[*] Fetching install scripts and configs..."
 echo
 
+SCRIPT_BASE="/run/media/arch/scripts"
+
+if [[ ! -d "$SCRIPT_BASE" ]]; then
+    echo "[!] Trusted script directory not found at $SCRIPT_BASE"
+    echo "[!] Ensure your USB is mounted before running this script."
+    exit 1
+fi
+
 # ------------------------------------------------------------------------------
 # CREATE DIRECTORY STRUCTURE
 # ------------------------------------------------------------------------------
@@ -191,8 +199,6 @@ mkdir -p /mnt/install/configs/themes/hyprland
 # ------------------------------------------------------------------------------
 # COPY
 # ------------------------------------------------------------------------------
-
-SCRIPT_BASE="/run/media/arch/scripts"
 
 cp -r  "$SCRIPT_BASE"/install/part*.sh              /mnt/install/
 cp -r  "$SCRIPT_BASE"/configs/system/.              /mnt/install/configs/system/
