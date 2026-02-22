@@ -115,6 +115,6 @@ echo "  Suggested next steps:"
 echo "  - Reboot once more to confirm:"
 echo "      * TPM2 unlock works (with PIN if configured)"
 echo "      * Secure Boot remains enabled"
-echo "  - Start using the system normally."
+echo "  - Login with with your user (not root)."
 echo
 echo "================================================="
