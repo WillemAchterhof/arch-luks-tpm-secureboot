@@ -74,6 +74,9 @@ else
     echo "[*] TPM2 enrollment complete."
 fi
 
+cryptsetup luksDump "$ROOT_DEV" | grep -E 'Key Slot'
+read -rp "Enter to continue"
+
 # ------------------------------------------------------------------------------
 # ROOT ACCOUNT HARDENING
 # ------------------------------------------------------------------------------
