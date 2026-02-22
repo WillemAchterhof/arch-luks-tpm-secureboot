@@ -68,7 +68,7 @@ if [[ "${ENROLL_OK,,}" != "y" ]]; then
 else
     systemd-cryptenroll \
         --tpm2-device=auto \
-        --tpm2-pcrs=0,7 \
+        --tpm2-pcrs=0+7 \
         --tpm2-with-pin=yes \
         "$ROOT_DEV"
     echo "[*] TPM2 enrollment complete."
