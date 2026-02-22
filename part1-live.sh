@@ -18,8 +18,10 @@ echo
 echo "[*] Enabling NTP..."
 timedatectl set-ntp true
 
-echo "[*] Setting timezone Europe/Amsterdam..."
-timedatectl set-timezone Europe/Amsterdam
+read -rp "Enter your timezone (example: Europe/Amsterdam): " TIMEZONE
+
+echo "[*] Setting timezone $TIMEZONE ..."
+timedatectl set-timezone "$TIMEZONE"
 
 read -rp "Do you need WiFi? (y/N): " WiFi
 
@@ -49,6 +51,7 @@ echo "[*] Connection established."
 # ------------------------------------------------------------------------------
 # PACMAN & MIRRORS
 # ------------------------------------------------------------------------------
+read -rp "Enter your country for mirrors (example: Netherlands,Germany): " MIRROR_COUNTRIES
 
 echo "[*] Configuring pacman..."
 sed -i \
@@ -57,7 +60,7 @@ sed -i \
   /etc/pacman.conf
 
 echo "[*] Selecting mirrors..."
-reflector --country Netherlands,Germany --age 10 --protocol https --sort rate \
+reflector --country "$MIRROR_COUNTRIES" --age 10 --protocol https --sort rate \
   --save /etc/pacman.d/mirrorlist
 
 # ------------------------------------------------------------------------------
@@ -90,7 +93,7 @@ sgdisk --new=1:0:+1024MiB --typecode=1:EF00 --change-name=1:"EFI System Partitio
 sgdisk --new=2:0:0        --typecode=2:8300 --change-name=2:"Encrypted Root"        "$DISK"
 partprobe "$DISK"
 
-if [[ "$DISK" =~ nvme[0-9]n[0-9]$ || "$DISK" =~ mmcblk[0-9]$ ]]; then
+if [[ "$DISK" =~ nvme[0-9]+n[0-9]+$ || "$DISK" =~ mmcblk[0-9]+$ ]]; then
     EFI_PART="${DISK}p1"
     ROOT_PART="${DISK}p2"
 else
@@ -202,6 +205,15 @@ cp -r  "$SCRIPT_BASE"/configs/themes/waybar/.       /mnt/install/configs/themes/
 cp -r  "$SCRIPT_BASE"/configs/themes/rofi/.         /mnt/install/configs/themes/rofi/
 cp -r  "$SCRIPT_BASE"/configs/themes/alacritty/.    /mnt/install/configs/themes/alacritty/
 cp -r  "$SCRIPT_BASE"/configs/themes/hyprland/.     /mnt/install/configs/themes/hyprland/
+
+# ------------------------------------------------------------------------------
+# Saving TIMEZONE and MIRROR_COUNTRIES for later use
+# ------------------------------------------------------------------------------
+
+cat > /mnt/install/install.conf <<EOF
+TIMEZONE="$TIMEZONE"
+MIRROR_COUNTRIES="$MIRROR_COUNTRIES"
+EOF
 
 # ------------------------------------------------------------------------------
 # CPU DETECTION
