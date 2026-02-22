@@ -164,10 +164,7 @@ unset LUKS_PASS
 # SCRIPT SOURCE DETECTION
 # ------------------------------------------------------------------------------
 
-if [[ ! -d "/run/media/arch/scripts" ]]; then
-    echo "[!] Scripts must be run from trusted USB."
-    exit 1
-fi
+    SCRIPT_BASE = "/run/media/arch/scripts"
 
 # ------------------------------------------------------------------------------
 # GET SCRIPTS - /mnt is now mounted, safe to copy
@@ -195,17 +192,16 @@ mkdir -p /mnt/install/configs/themes/hyprland
 # COPY
 # ------------------------------------------------------------------------------
 
-if [[ "$SCRIPT_BASE" == /* ]]; then
-    echo "[*] Copying from USB..."
+SCRIPT_BASE = "/run/media/arch/scripts"
 
-    cp -r "$SCRIPT_BASE"/install/part*.sh            \    /mnt/install/
-    cp -r  "$SCRIPT_BASE"/configs/system/*           \    /mnt/install/configs/system/
-    cp -r  "$SCRIPT_BASE"/configs/shell/*            \    /mnt/install/configs/shell/
-    cp -r  "$SCRIPT_BASE"/configs/editor/*           \    /mnt/install/configs/editor/
-    cp -r  "$SCRIPT_BASE"/configs/themes/waybar/*    \    /mnt/install/configs/themes/waybar/
-    cp -r  "$SCRIPT_BASE"/configs/themes/rofi/*      \    /mnt/install/configs/themes/rofi/
-    cp -r  "$SCRIPT_BASE"/configs/themes/alacritty/* \    /mnt/install/configs/themes/alacritty/
-    cp -r  "$SCRIPT_BASE"/configs/themes/hyprland/*  \    /mnt/install/configs/themes/hyprland/
+cp -r  "$SCRIPT_BASE"/install/part*.sh           /    /mnt/install/
+cp -r  "$SCRIPT_BASE"/configs/system/*           /    /mnt/install/configs/system/
+cp -r  "$SCRIPT_BASE"/configs/shell/*            /    /mnt/install/configs/shell/
+cp -r  "$SCRIPT_BASE"/configs/editor/*           /    /mnt/install/configs/editor/
+cp -r  "$SCRIPT_BASE"/configs/themes/waybar/*    /    /mnt/install/configs/themes/waybar/
+cp -r  "$SCRIPT_BASE"/configs/themes/rofi/*      /    /mnt/install/configs/themes/rofi/
+cp -r  "$SCRIPT_BASE"/configs/themes/alacritty/* /    /mnt/install/configs/themes/alacritty/
+cp -r  "$SCRIPT_BASE"/configs/themes/hyprland/*  /    /mnt/install/configs/themes/hyprland/
 
 # ------------------------------------------------------------------------------
 # CPU DETECTION
