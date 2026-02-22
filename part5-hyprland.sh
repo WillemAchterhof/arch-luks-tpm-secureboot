@@ -2,14 +2,15 @@
 set -euo pipefail
 
 # ==============================================================================
-#  Arch Linux Secure Install - Part 5 (Hyprland Desktop Setup)
-#  Run this AFTER Part 4, inside your fully booted system
+#  Arch Linux Secure Install - Part 6 (User Environment Setup)
+#  Run this AFTER Part 5, as root (sudo)
+#  Sets up shell, editor configs, USBGuard, Plymouth, extra tools
 # ==============================================================================
 
 clear
 echo "================================================="
-echo "   Arch Linux Secure Installation - Part 5"
-echo "   Hyprland Desktop Environment Setup"
+echo "   Arch Linux Secure Installation - Part 6"
+echo "   User Environment & Security Setup"
 echo "================================================="
 echo
 
@@ -29,178 +30,181 @@ if ! id "$USERNAME" &>/dev/null; then
     exit 1
 fi
 
-# ------------------------------------------------------------------------------
-# ENABLE REPOS & UPDATE
-# ------------------------------------------------------------------------------
-
-echo "[*] Updating system..."
-pacman -Syu --noconfirm
+HOME_DIR="/home/$USERNAME"
 
 # ------------------------------------------------------------------------------
-# INSTALL YAY (AUR HELPER)
+# EXTRA PACKAGES
 # ------------------------------------------------------------------------------
 
-echo "[*] Installing yay (AUR helper)..."
-
-pacman -S --needed --noconfirm base-devel git
-
-sudo -u "$USERNAME" bash -c '
-    if [[ ! -d "$HOME/yay" ]]; then
-        git clone https://aur.archlinux.org/yay.git "$HOME/yay"
-    fi
-    cd "$HOME/yay"
-    makepkg -si --noconfirm
-'
-
-# ------------------------------------------------------------------------------
-# HYPRLAND CORE
-# ------------------------------------------------------------------------------
-
-echo "[*] Installing Hyprland core packages..."
+echo "[*] Installing extra packages..."
 
 pacman -S --noconfirm \
-    hyprland hyprpaper hypridle hyprlock \
-    waybar mako cliphist \
-    grim slurp swappy \
-    thunar thunar-archive-plugin \
-    polkit-kde-agent \
-    xdg-desktop-portal xdg-desktop-portal-hyprland \
-    wofi \
-    ttf-font-awesome papirus-icon-theme
+    zsh-autosuggestions \
+    binutils \
+    inotify-tools \
+    usbguard \
+    plymouth
 
 # ------------------------------------------------------------------------------
-# OPTIONAL: Rofi-Wayland (AUR)
+# WIREPLUMBER USER SERVICE
 # ------------------------------------------------------------------------------
 
-sudo -u "$USERNAME" yay -S --noconfirm rofi-wayland
+echo "[*] Enabling WirePlumber for $USERNAME..."
+sudo -u "$USERNAME" systemctl --user enable --now wireplumber || true
 
 # ------------------------------------------------------------------------------
-# AUDIO & BLUETOOTH
+# ZSH CONFIGURATION
 # ------------------------------------------------------------------------------
 
-echo "[*] Installing audio + bluetooth..."
+echo "[*] Setting up Zsh for $USERNAME..."
 
-pacman -S --noconfirm \
-    pipewire pipewire-alsa pipewire-pulse pipewire-jack wireplumber \
-    bluez bluez-utils
-
-systemctl enable --now bluetooth
-
-# ------------------------------------------------------------------------------
-# GPU / VIDEO STACK
-# ------------------------------------------------------------------------------
-
-echo "[*] Installing GPU..."
-
-GPU_VENDOR=$(lspci | grep -i 'vga\|3d\|display' | head -1)
-
-if echo "$GPU_VENDOR" | grep -qi "amd"; then
-    pacman -S --noconfirm \
-        mesa vulkan-radeon libva-mesa-driver \
-        lib32-mesa lib32-vulkan-radeon lib32-libva-mesa-driver
-
-elif echo "$GPU_VENDOR" | grep -qi "nvidia"; then
-    pacman -S --noconfirm \
-        nvidia-dkms nvidia-utils lib32-nvidia-utils \
-        nvidia-settings
-    echo
-    echo "  [!] NVIDIA detected - add nvidia-drm.modeset=1 to your kernel cmdline!"
-    echo "      Edit /etc/kernel/cmdline and rebuild the UKI with: mkinitcpio -P"
-    echo
-    read -rp "Press ENTER to continue..." _
-       
-elif echo "$GPU_VENDOR" | grep -qi "intel"; then
-    pacman -S --noconfirm \
-        mesa vulkan-intel libva-intel-driver \
-        lib32-mesa lib32-vulkan-intel
+# Copy zsh config from /install/configs if it exists, otherwise create a base one
+if [[ -f /install/configs/.zshrc ]]; then
+    cp /install/configs/.zshrc "$HOME_DIR/.zshrc"
+    chown "$USERNAME:$USERNAME" "$HOME_DIR/.zshrc"
+    echo "[*] Copied .zshrc from install configs."
 else
-    echo "[!] GPU vendor not detected, skipping GPU drivers."
+    echo "[*] No .zshrc found in install configs, writing base config..."
+    cat > "$HOME_DIR/.zshrc" << 'EOF'
+# ==============================================================================
+# Zsh Configuration - Tokyo Night
+# ==============================================================================
+
+# History
+HISTSIZE=10000
+SAVEHIST=10000
+HISTFILE=~/.zsh_history
+setopt HIST_IGNORE_DUPS
+setopt SHARE_HISTORY
+
+# Autosuggestions
+source /usr/share/zsh/plugins/zsh-autosuggestions/zsh-autosuggestions.zsh
+
+# Aliases
+alias ls='ls --color=auto'
+alias ll='ls -lah'
+alias la='ls -A'
+alias grep='grep --color=auto'
+alias vim='nvim'
+alias vi='nvim'
+
+# Prompt (simple, replace with starship or p10k later)
+autoload -Uz promptinit
+promptinit
+prompt walters
+EOF
+    chown "$USERNAME:$USERNAME" "$HOME_DIR/.zshrc"
 fi
 
 # ------------------------------------------------------------------------------
-# FONTS
+# NEOVIM CONFIGURATION
 # ------------------------------------------------------------------------------
 
-echo "[*] Installing fonts..."
+echo "[*] Setting up Neovim for $USERNAME..."
 
-pacman -S --noconfirm \
-    ttf-dejavu ttf-liberation \
-    noto-fonts noto-fonts-cjk noto-fonts-emoji
+sudo -u "$USERNAME" mkdir -p "$HOME_DIR/.config/nvim"
 
-# ------------------------------------------------------------------------------
-# GAMING STACK
-# ------------------------------------------------------------------------------
+if [[ -f /install/configs/init.lua ]]; then
+    cp /install/configs/init.lua "$HOME_DIR/.config/nvim/init.lua"
+    chown "$USERNAME:$USERNAME" "$HOME_DIR/.config/nvim/init.lua"
+    echo "[*] Copied init.lua from install configs."
+else
+    echo "[*] No init.lua found in install configs, writing base config..."
+    cat > "$HOME_DIR/.config/nvim/init.lua" << 'EOF'
+-- ==============================================================================
+-- Neovim Base Config - Tokyo Night
+-- ==============================================================================
 
-echo "[*] Installing gaming tools..."
+-- Basic settings
+vim.opt.number = true
+vim.opt.relativenumber = true
+vim.opt.tabstop = 4
+vim.opt.shiftwidth = 4
+vim.opt.expandtab = true
+vim.opt.smartindent = true
+vim.opt.wrap = false
+vim.opt.termguicolors = true
+vim.opt.clipboard = "unnamedplus"
+vim.opt.scrolloff = 8
+vim.opt.signcolumn = "yes"
+vim.opt.updatetime = 100
+vim.opt.mouse = "a"
 
-pacman -S --noconfirm steam gamemode mangohud
+-- Leader key
+vim.g.mapleader = " "
 
-sudo -u "$USERNAME" yay -S --noconfirm protonup-qt
-
-# ------------------------------------------------------------------------------
-# PROGRAMMING STACK
-# ------------------------------------------------------------------------------
-
-echo "[*] Installing programming tools..."
-
-pacman -S --noconfirm dotnet-sdk
-
-sudo -u "$USERNAME" yay -S --noconfirm powershell-bin visual-studio-code-bin
-
-# ------------------------------------------------------------------------------
-# MEDIA TOOLS
-# ------------------------------------------------------------------------------
-
-echo "[*] Installing media tools..."
-
-pacman -S --noconfirm mpv yt-dlp
-
-# ------------------------------------------------------------------------------
-# VIRTUALIZATION
-# ------------------------------------------------------------------------------
-
-echo "[*] Installing virtualization tools..."
-
-pacman -S --noconfirm qemu-full libvirt virt-manager
-
-systemctl enable --now libvirtd
+-- Basic keymaps
+vim.keymap.set("n", "<leader>e", vim.cmd.Ex)
+vim.keymap.set("n", "<C-s>", "<cmd>w<cr>")
+vim.keymap.set("n", "<C-q>", "<cmd>q<cr>")
+EOF
+    chown -R "$USERNAME:$USERNAME" "$HOME_DIR/.config/nvim"
+fi
 
 # ------------------------------------------------------------------------------
-# USER ENVIRONMENT SETUP 
-# ------------------------------------------------------------------------------ 
-
-echo "[*] Updating XDG user directories for $USERNAME..." 
-sudo -u "$USERNAME" xdg-user-dirs-update || true
-
-echo "[*] Enabling WirePlumber user service for $USERNAME..." 
-systemctl --user enable --now wireplumber
-
-sed -i 's/^#TERMINAL=alacritty/TERMINAL=alacritty/' /etc/environment
-sed -i 's/^#MOZ_ENABLE_WAYLAND=1/MOZ_ENABLE_WAYLAND=1/' /etc/environment
-sed -i 's/^#QT_QPA_PLATFORM=wayland/QT_QPA_PLATFORM=wayland/' /etc/environment
-sed -i 's/^#SDL_VIDEODRIVER=wayland/SDL_VIDEODRIVER=wayland/' /etc/environment
-
-# ------------------------------------------------------------------------------
-# UTILITIES
+# USBGUARD SETUP
 # ------------------------------------------------------------------------------
 
-echo "[*] Installing utilities..."
+echo
+echo "================================================="
+echo "   USBGuard Setup"
+echo "================================================="
+echo
+echo "  USBGuard will whitelist currently connected USB"
+echo "  devices and block all others."
+echo
+echo "  Make sure ALL USB devices you want to allow are"
+echo "  plugged in RIGHT NOW (keyboard, mouse, etc.)"
+echo
+read -rp "Press ENTER when all your USB devices are connected..." _
 
-pacman -S --noconfirm \
-    alacritty btop fastfetch keepassxc \
-    xdg-user-dirs xdg-utils
+echo "[*] Generating USBGuard policy from connected devices..."
+usbguard generate-policy > /etc/usbguard/rules.conf
+
+echo "[*] Enabling USBGuard service..."
+systemctl enable --now usbguard
+
+echo
+echo "[*] Currently allowed USB devices:"
+usbguard list-devices --allowed
+
+echo
+echo "================================================="
+echo "   USBGuard Device Management"
+echo "================================================="
+echo
+echo "  Useful commands for managing USB devices later:"
+echo
+echo "  List all devices:"
+echo "    usbguard list-devices"
+echo
+echo "  Allow a device permanently (no password needed again):"
+echo "    usbguard allow-device -p <id>"
+echo
+echo "  Block a device:"
+echo "    usbguard block-device <id>"
+echo
+read -rp "Press ENTER to continue..." _
 
 # ------------------------------------------------------------------------------
-# COPY USER CONFIG (Hyprland)
+# PLYMOUTH THEME
 # ------------------------------------------------------------------------------
 
-echo "[*] Creating Hyprland config directory..."
+echo "[*] Configuring Plymouth..."
 
-sudo -u "$USERNAME" mkdir -p "/home/$USERNAME/.config/hypr"
+# Add plymouth to mkinitcpio hooks
+sed -i 's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt plymouth filesystems fsck)|' /etc/mkinitcpio.conf
 
-echo "[*] Copying your existing hyprland.conf..."
+# Set a theme - bgrt uses OEM logo, fallback to spinner
+if plymouth-set-default-theme bgrt 2>/dev/null; then
+    echo "[*] Plymouth theme set to bgrt (OEM logo)."
+else
+    plymouth-set-default-theme spinner
+    echo "[*] Plymouth theme set to spinner."
+fi
 
-sudo -u "$USERNAME" cp /install/hyprland.conf "/home/$USERNAME/.config/hypr/hyprland.conf"
+echo "[*] Rebuilding UKI with Plymouth..."
+mkinitcpio -P
 
 # ------------------------------------------------------------------------------
 # DONE
@@ -208,13 +212,15 @@ sudo -u "$USERNAME" cp /install/hyprland.conf "/home/$USERNAME/.config/hypr/hypr
 
 echo
 echo "================================================="
-echo "   Part 5 Complete — Hyprland Installed"
+echo "   Part 6 Complete"
 echo "================================================="
 echo
-echo "You can now log out and select Hyprland in your login manager,"
-echo "or run it directly from TTY with:"
+echo "  What was set up:"
+echo "  - Zsh with autosuggestions"
+echo "  - Neovim base config"
+echo "  - USBGuard with current devices whitelisted"
+echo "  - Plymouth boot splash"
 echo
-echo "   exec Hyprland"
+echo "  Reboot to confirm Plymouth boot splash works."
 echo
-echo "Enjoy your new desktop!"
 echo "================================================="
