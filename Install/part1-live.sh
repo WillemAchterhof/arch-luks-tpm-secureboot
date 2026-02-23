@@ -202,32 +202,6 @@ read -rp "Type YES after saving it: " CONFIRM2
 unset LUKS_PASS
 
 # ------------------------------------------------------------------------------
-# GET SCRIPTS - /mnt is now mounted, safe to copy
-# ------------------------------------------------------------------------------
-
-echo
-echo "[*] Fetching install scripts and configs..."
-echo
-
-# Download get-scripts.sh itself first if using GitHub
-if [[ "$SCRIPT_BASE" != /* ]]; then
-    curl -fsSL "$SCRIPT_BASE/get-scripts.sh" -o /tmp/get-scripts.sh
-    chmod +x /tmp/get-scripts.sh
-    bash /tmp/get-scripts.sh
-else
-    bash "$SCRIPT_BASE/get-scripts.sh"
-fi
-
-# ------------------------------------------------------------------------------
-# SAVE INSTALL CONFIG FOR LATER PARTS
-# ------------------------------------------------------------------------------
-
-cat > /mnt/install/install.conf <<EOF
-TIMEZONE="$TIMEZONE"
-MIRROR_COUNTRIES="$MIRROR_COUNTRIES"
-EOF
-
-# ------------------------------------------------------------------------------
 # CPU DETECTION
 # ------------------------------------------------------------------------------
 
