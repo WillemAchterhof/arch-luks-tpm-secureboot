@@ -35,7 +35,7 @@ if ! timedatectl list-timezones | grep -qx "$TIMEZONE"; then
     exit 1
 fi
 
-echo "[*] Setting timezone $TIMEZONE ..."
+echo "[*] Setting timezone $TIMEZONE..."
 timedatectl set-timezone "$TIMEZONE"
 
 read -rp "Do you need WiFi? (y/N): " WiFi
@@ -73,7 +73,7 @@ echo "[*] Connection established."
 # PACMAN & MIRRORS
 # ------------------------------------------------------------------------------
 
-read -rp "Enter your country for mirrors (example: Netherlands,Germany): " MIRROR_COUNTRIES
+read -rp "Enter your countries for mirrors (example: Netherlands,Germany): " MIRROR_COUNTRIES
 
 if [[ -z "$MIRROR_COUNTRIES" ]]; then
     MIRROR_COUNTRIES="Netherlands,Germany"
@@ -89,6 +89,20 @@ sed -i \
 echo "[*] Selecting mirrors..."
 reflector --country "$MIRROR_COUNTRIES" --age 10 --protocol https --sort rate \
   --save /etc/pacman.d/mirrorlist
+
+# ------------------------------------------------------------------------------
+# SCRIPT SOURCE DETECTION
+# ------------------------------------------------------------------------------
+
+if [[ -d "/run/media/arch/scripts" ]]; then
+    SCRIPT_BASE="/run/media/arch/scripts"
+    echo "[*] Using local USB scripts..."
+else
+    SCRIPT_BASE="https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main"
+    echo "[*] Using GitHub scripts..."
+fi
+
+export SCRIPT_BASE
 
 # ------------------------------------------------------------------------------
 # DISK SELECTION
@@ -195,43 +209,17 @@ echo
 echo "[*] Fetching install scripts and configs..."
 echo
 
-SCRIPT_BASE="${SCRIPT_BASE:-/run/media/arch/scripts}"
-
-if [[ ! -d "$SCRIPT_BASE" ]]; then
-    echo "[!] Trusted script directory not found at $SCRIPT_BASE"
-    echo "[!] Ensure your USB is mounted before running this script."
-    exit 1
+# Download get-scripts.sh itself first if using GitHub
+if [[ "$SCRIPT_BASE" != /* ]]; then
+    curl -fsSL "$SCRIPT_BASE/get-scripts.sh" -o /tmp/get-scripts.sh
+    chmod +x /tmp/get-scripts.sh
+    bash /tmp/get-scripts.sh
+else
+    bash "$SCRIPT_BASE/get-scripts.sh"
 fi
 
 # ------------------------------------------------------------------------------
-# CREATE DIRECTORY STRUCTURE
-# ------------------------------------------------------------------------------
-
-echo "[*] Creating directory structure..."
-
-mkdir -p /mnt/install/configs/system
-mkdir -p /mnt/install/configs/shell
-mkdir -p /mnt/install/configs/editor
-mkdir -p /mnt/install/configs/themes/waybar
-mkdir -p /mnt/install/configs/themes/rofi
-mkdir -p /mnt/install/configs/themes/alacritty
-mkdir -p /mnt/install/configs/themes/hyprland
-
-# ------------------------------------------------------------------------------
-# COPY
-# ------------------------------------------------------------------------------
-
-cp -r  "$SCRIPT_BASE"/install/part*.sh              /mnt/install/
-cp -r  "$SCRIPT_BASE"/configs/system/.              /mnt/install/configs/system/
-cp -r  "$SCRIPT_BASE"/configs/shell/.               /mnt/install/configs/shell/
-cp -r  "$SCRIPT_BASE"/configs/editor/.              /mnt/install/configs/editor/
-cp -r  "$SCRIPT_BASE"/configs/themes/waybar/.       /mnt/install/configs/themes/waybar/
-cp -r  "$SCRIPT_BASE"/configs/themes/rofi/.         /mnt/install/configs/themes/rofi/
-cp -r  "$SCRIPT_BASE"/configs/themes/alacritty/.    /mnt/install/configs/themes/alacritty/
-cp -r  "$SCRIPT_BASE"/configs/themes/hyprland/.     /mnt/install/configs/themes/hyprland/
-
-# ------------------------------------------------------------------------------
-# Saving TIMEZONE and MIRROR_COUNTRIES for later use
+# SAVE INSTALL CONFIG FOR LATER PARTS
 # ------------------------------------------------------------------------------
 
 cat > /mnt/install/install.conf <<EOF
@@ -279,7 +267,6 @@ pacstrap -K /mnt \
   reflector \
   libpwquality \
   polkit \
-  usbguard \
   tar gzip unzip p7zip
 
 # ------------------------------------------------------------------------------
