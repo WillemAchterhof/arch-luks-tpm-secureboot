@@ -154,9 +154,20 @@ fi
 echo "[*] Running system checks..."
 echo
 
-bash "$REPO_ROOT/install/file-integrity-check.sh"
-bash "$REPO_ROOT/install/secure-boot-check.sh"
-bash "$REPO_ROOT/install/pacman-mirrors-check.sh"
+#if ! bash "$REPO_ROOT/install/file-integrity-check.sh"; then
+#	echo "[!] File integrity check failed." >&2
+#	exit 1
+#fi will be used later for checksums.
+
+if ! bash "$REPO_ROOT/install/secure-boot-check.sh"; then
+	echo "[!] Secure-boot check failed." >&2
+	exit 1
+fi
+
+if ! bash "$REPO_ROOT/install/pacman-mirrors-check.sh"; then
+	echo "[!] pacman mirrors check failed." >&2
+	exit 1
+fi
 
 # ==============================================================================
 # COMPLETE
