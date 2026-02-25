@@ -25,7 +25,8 @@ echo
 # ==============================================================================
 
 has_internet() {
-    curl -s --head --fail --max-time 3 https://archlinux.org >/dev/null
+    curl -s --head --fail --max-time 3 https://archlinux.org >/dev/null \
+      || ping -c 1 -W 1 1.1.1.1 >/dev/null 2>&1
 }
 
 # ==============================================================================
@@ -42,13 +43,16 @@ fetch_file() {
         if curl -fsSL "$url" -o "$dest"; then
             return 0
         fi
-        echo "  [!] Failed to fetch $filename (attempt $attempt)."
-        [[ $attempt -lt 3 ]] && echo "      Retrying in 3 seconds..." && sleep 3
+        echo "  [!] Failed to fetch ${filename} (attempt ${attempt})." >&2
+        if [[ $attempt -lt 3 ]]; then
+          echo "      Retrying in $(( 2 ** attempt )) seconds..." >&2
+          sleep $(( 2 ** attempt ))
+        fi
     done
 
     echo
-    echo "[!] Could not fetch $filename after 3 attempts."
-    echo "    Check your connection and re-run install.sh"
+    echo "[!] Could not fetch ${filename} after 3 attempts." >&2
+    echo "    Check your connection and re-run install.sh" >&2
     exit 2
 }
 
@@ -62,13 +66,13 @@ else
     echo "[!] No internet connection detected."
     echo
 
-    if [[ -f "$REPO_ROOT/install-checks/network-setup.sh" ]]; then
+    if [[ -f "$REPO_ROOT/install/network-setup.sh" ]]; then
         echo "[*] Launching network setup..."
-        bash "$REPO_ROOT/install-checks/network-setup.sh"
+        bash "$REPO_ROOT/install/network-setup.sh"
 
         echo "[*] Re-checking internet..."
         if ! has_internet; then
-            echo "[!] Still no internet connection. Aborting."
+            echo "[!] Still no internet connection. Aborting." >&2
             exit 1
         fi
     else
@@ -93,16 +97,16 @@ fi
 # ==============================================================================
 
 CHECK_FILES=(
-    "install-checks/file-integrity-check.sh"
-    "install-checks/secure-boot-check.sh"
-    "install-checks/pacman-mirrors-check.sh"
+    "install/file-integrity-check.sh"
+    "install/secure-boot-check.sh"
+    "install/pacman-mirrors-check.sh"
 )
 
 # ==============================================================================
 # Verify files exist locally
 # ==============================================================================
 
-echo "[*] Verifying required install-checks files..."
+echo "[*] Verifying required install checks files..."
 
 CHECKS_MISSING=false
 for f in "${CHECK_FILES[@]}"; do
@@ -119,21 +123,24 @@ if [[ "$CHECKS_MISSING" == true ]]; then
     # --------------------------------------------------------------------------
 
     echo
-    echo "[*] Fetching install-checks from GitHub..."
-    mkdir -p "$REPO_ROOT/install-checks"
+    echo "[*] Fetching install checks from GitHub..."
+    mkdir -p "$REPO_ROOT/install"
 
     for f in "${CHECK_FILES[@]}"; do
-    if [[ ! -f "$REPO_ROOT/$f" ]]; then
-        filename=$(basename "$f")
-        echo "    Fetching $filename..."
-        fetch_file "$GITHUB_RAW/$f" "$REPO_ROOT/$f"
-    else
-        echo "    Already present: $(basename "$f")"
-    fi
+      if [[ ! -f "$REPO_ROOT/$f" ]]; then
+          filename=$(basename "$f")
+          echo "    Fetching ${filename}..."
+          fetch_file "$GITHUB_RAW/$f" "$REPO_ROOT/$f"
+      else
+          echo "    Already present: $(basename "$f")"
+      fi
     done
 
-    chmod +x "$REPO_ROOT"/install-checks/*.sh
-    echo "[*] install-checks ready."
+    shopt -s nullglob
+    chmod +x "$REPO_ROOT"/install/*.sh || true
+    shopt -u nullglob
+
+    echo "[*] install checks ready."
     echo
 else
     echo "[*] All required files present."
@@ -147,9 +154,9 @@ fi
 echo "[*] Running system checks..."
 echo
 
-bash "$REPO_ROOT/install-checks/file-integrity-check.sh"
-bash "$REPO_ROOT/install-checks/secure-boot-check.sh"
-bash "$REPO_ROOT/install-checks/pacman-mirrors-check.sh"
+bash "$REPO_ROOT/install/file-integrity-check.sh"
+bash "$REPO_ROOT/install/secure-boot-check.sh"
+bash "$REPO_ROOT/install/pacman-mirrors-check.sh"
 
 # ==============================================================================
 # COMPLETE
@@ -161,4 +168,12 @@ echo "   System checks complete — ready to configure"
 echo "================================================="
 echo
 
-source "$REPO_ROOT/config/menu.sh" main_menu
+# Load menu and invoke main_menu (adjust if menu.sh is an executable script)
+if [[ -f "$REPO_ROOT/menu/menu.sh" ]]; then
+  # shellcheck source=/dev/null
+  source "$REPO_ROOT/menu/menu.sh"
+  main_menu
+else
+  echo "[!] Menu file not found: $REPO_ROOT/menu/menu.sh" >&2
+  exit 1
+fi

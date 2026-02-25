@@ -8,6 +8,7 @@ IFS=$'\n\t'
 #  Handles ethernet detection, WiFi setup and credential saving
 # ==============================================================================
 
+: "${REPO_ROOT:=/run/archiso/bootmnt}"  # fallback if not exported
 CREDENTIALS_FILE="$REPO_ROOT/.wifi-credentials"
 
 # ==============================================================================
@@ -15,16 +16,17 @@ CREDENTIALS_FILE="$REPO_ROOT/.wifi-credentials"
 # ==============================================================================
 
 has_internet() {
-    curl -s --head --fail --max-time 3 https://archlinux.org >/dev/null
+    curl -s --head --fail --max-time 3 https://archlinux.org >/dev/null \
+      || ping -c 1 -W 1 1.1.1.1 >/dev/null 2>&1
 }
 
 # ==============================================================================
-# CHECK FOR ACTIVE ETHERNET FIRST
-# Uses carrier file — more reliable than ip link state
+# CHECK FOR ACTIVE ETHERNET FIRST (carrier-based)
 # ==============================================================================
 
 echo "[*] Checking for ethernet connection..."
 
+FOUND_ETH=false
 for path in /sys/class/net/*; do
     iface=$(basename "$path")
 
@@ -33,7 +35,7 @@ for path in /sys/class/net/*; do
 
     if [[ -f "$path/carrier" ]] && [[ "$(cat "$path/carrier" 2>/dev/null)" == "1" ]]; then
         echo "  Ethernet link detected on: $iface"
-
+        FOUND_ETH=true
         if has_internet; then
             echo "  Internet working via ethernet."
             echo
@@ -45,8 +47,10 @@ for path in /sys/class/net/*; do
     fi
 done
 
-echo "  No working ethernet connection detected."
-echo
+if [[ "$FOUND_ETH" == false ]]; then
+  echo "  No working ethernet connection detected."
+  echo
+fi
 
 # ==============================================================================
 # AUTO-RECONNECT — Try saved WiFi credentials first
@@ -67,15 +71,25 @@ if [[ -f "$CREDENTIALS_FILE" ]]; then
     done < "$CREDENTIALS_FILE"
 
     if [[ -n "$SAVED_SSID" && -n "$SAVED_PASSWORD" ]]; then
-        ADAPTER=$(iwctl device list | awk '/station/ {print $2; exit}')
+        ADAPTER=$(
+          iwctl device list 2>/dev/null \
+          | awk '
+              BEGIN { ansi = "\033\\[[0-9;]*m" }
+              NR <= 4 { next } /^-+/ { next }
+              { gsub(ansi,""); for (i=1;i<=NF;i++) if ($i=="station") { print $1; exit } }'
+        )
 
-        if [[ -n "$ADAPTER" ]]; then
+        if [[ -n "${ADAPTER:-}" ]]; then
             echo "  Connecting to: $SAVED_SSID"
             if iwctl --passphrase "$SAVED_PASSWORD" station "$ADAPTER" connect "$SAVED_SSID" >/dev/null 2>&1; then
-                sleep 2
+                for i in {1..10}; do
+                  has_internet && break
+                  sleep 1
+                done
                 if has_internet; then
                     echo "  [*] Auto-reconnected successfully."
                     echo
+                    unset SAVED_PASSWORD
                     exit 0
                 fi
             fi
@@ -84,7 +98,7 @@ if [[ -f "$CREDENTIALS_FILE" ]]; then
         fi
     fi
 
-    unset SAVED_PASSWORD
+    unset SAVED_PASSWORD || true
 fi
 
 # ==============================================================================
@@ -98,9 +112,15 @@ echo
 # FIND WIFI ADAPTER
 # ------------------------------------------------------------------------------
 
-ADAPTER=$(iwctl device list | awk '/station/ {print $2; exit}')
+ADAPTER=$(
+  iwctl device list 2>/dev/null \
+  | awk '
+      BEGIN { ansi = "\033\\[[0-9;]*m" }
+      NR <= 4 { next } /^-+/ { next }
+      { gsub(ansi,""); for (i=1;i<=NF;i++) if ($i=="station") { print $1; exit } }'
+)
 
-if [[ -z "$ADAPTER" ]]; then
+if [[ -z "${ADAPTER:-}" ]]; then
     echo "[!] No WiFi adapter detected."
     echo "    Plug in ethernet and re-run install.sh"
     exit 1
@@ -121,15 +141,17 @@ NETWORKS=()
 
 scan_networks() {
     echo "[*] Scanning for WiFi networks..."
-    iwctl station "$ADAPTER" scan >/dev/null 2>&1
+    iwctl station "$ADAPTER" scan >/dev/null 2>&1 || true
     sleep 2
 
     mapfile -t NETWORKS < <(
         iwctl station "$ADAPTER" get-networks 2>/dev/null \
-        | awk 'NR>4 && $1 !~ /Network|--/ {
-            gsub(/\x1b\[[0-9;]*m/, "")
-            if ($1 != "") print $1
-        }'
+        | awk '
+            NR>4 && $1 !~ /Network|--/ {
+                gsub(/\x1b\[[0-9;]*m/, "")
+                if ($1 != "") print $1
+            }' \
+        | sort -u
     )
 }
 
@@ -157,7 +179,7 @@ while true; do
         echo
         read -rp "  Select: " NET_CHOICE
 
-        case "$NET_CHOICE" in
+        case "${NET_CHOICE:-}" in
             r|R) continue ;;
             m|M) SSID="" ;;
             a|A) break ;;
@@ -175,13 +197,12 @@ while true; do
         echo
         read -rp "  Select network: " NET_CHOICE
 
-        case "$NET_CHOICE" in
+        case "${NET_CHOICE:-}" in
             r|R) continue ;;
             m|M) SSID="" ;;
             a|A) break ;;
             *)
-                if [[ "$NET_CHOICE" =~ ^[0-9]+$ ]] &&
-                   (( NET_CHOICE >= 1 && NET_CHOICE <= ${#NETWORKS[@]} )); then
+                if [[ "$NET_CHOICE" =~ ^[0-9]+$ ]] && (( NET_CHOICE >= 1 && NET_CHOICE <= ${#NETWORKS[@]} )); then
                     SSID="${NETWORKS[$((NET_CHOICE-1))]}"
                 else
                     echo "  [!] Invalid selection."
@@ -198,27 +219,30 @@ while true; do
         [[ -z "$SSID" ]] && continue
     fi
 
-    # --------------------------------------------------------------------------
-    # PASSWORD + CONNECT
-    # 3 attempts then back to network selection
-    # --------------------------------------------------------------------------
-
     echo
     for attempt in 1 2 3; do
         read -rsp "  Enter password for '$SSID': " WIFI_PASSWORD && echo
 
         if iwctl --passphrase "$WIFI_PASSWORD" station "$ADAPTER" connect "$SSID" >/dev/null 2>&1; then
-            # Save credentials to USB for reuse after BIOS reboot
-            {
-                echo "SSID=$SSID"
-                echo "PASSWORD=$WIFI_PASSWORD"
-            } > "$CREDENTIALS_FILE"
-            chmod 600 "$CREDENTIALS_FILE"
+            for i in {1..10}; do
+              has_internet && break
+              sleep 1
+            done
+
+            # Ask to save credentials
+            read -rp "  Save WiFi credentials to USB for reuse after reboot? (y/N): " SAVE_CHOICE
+            if [[ "${SAVE_CHOICE,,}" == "y" ]]; then
+              {
+                  echo "SSID=$SSID"
+                  echo "PASSWORD=$WIFI_PASSWORD"
+              } > "$CREDENTIALS_FILE"
+              chmod 600 "$CREDENTIALS_FILE"
+              echo "  [*] Credentials saved to: $CREDENTIALS_FILE"
+            fi
 
             unset WIFI_PASSWORD
             echo
             echo "  [*] Connected to $SSID"
-            echo "  [*] Credentials saved to USB for reuse after reboot."
             WIFI_CONNECTED=true
             break 2
         fi
