@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-STATE_FILE="/tmp/arch-installer.state"
+mkdir -p "$INSTALL_FOLDER/state"
+STATE_FILE="$INSTALL_FOLDER/state/arch-installer.state"
 
 load_state() {
     if [[ -f "$STATE_FILE" ]]; then
