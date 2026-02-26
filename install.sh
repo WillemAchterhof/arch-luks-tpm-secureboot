@@ -19,6 +19,9 @@ VERBOSE=true
 # shellcheck source=/dev/null
 source "$REPO_ROOT/install/lib/common.sh"
 
+# Ensure root
+ensure_root
+
 clear
 echo "================================================="
 echo "   Arch Linux Secure Installation"

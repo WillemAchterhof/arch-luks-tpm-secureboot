@@ -106,9 +106,7 @@ scan_networks() {
         iwctl station "$ADAPTER" get-networks 2>/dev/null \
         | awk '
             NR>4 && $1 !~ /Network|--/ {
-                gsub(/\x1b
-
-\[[0-9;]*m/, "")
+                gsub(/\x1b\[[0-9;]*m/, "")
                 if ($1 != "") print $1
             }' \
         | sort -u
