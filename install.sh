@@ -1,23 +1,40 @@
 #!/usr/bin/env bash
 set -euo pipefail
-IFS=$'\n\t'
-
-# ==============================================================================
-#  Arch Linux Secure Install - install.sh
-# ==============================================================================
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-cd "$REPO_ROOT" || exit
-export REPO_ROOT
+
+source "$REPO_ROOT/install/lib/bootstrap.sh"
+
+ensure_root
+load_state
+
+case "$STATE" in
+    precheck)
+        source "$REPO_ROOT/install/network-setup.sh"
+        STATE="secureboot"
+        save_state
+        ;;
+    secureboot)
+        source "$REPO_ROOT/install/secure-boot.sh"
+        STATE="pacman"
+        save_state
+        ;;
+    pacman)
+        source "$REPO_ROOT/install/pacman.sh"
+        STATE="menu"
+        save_state
+        ;;
+    menu)
+        source "$REPO_ROOT/install/menu.sh"
+        STATE="done"
+        save_state
+        ;;
+esac
 
 GITHUB_RAW="https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main"
-export GITHUB_RAW
 
 LOG_FILE="/tmp/install.log"
 VERBOSE=true
-
-# shellcheck source=/dev/null
-source "$REPO_ROOT/install/lib/common.sh"
 
 # Ensure root
 ensure_root
@@ -37,7 +54,7 @@ else
 
     if [[ -f "$REPO_ROOT/install/network-setup.sh" ]]; then
         log "[*] Launching network setup..."
-        bash "$REPO_ROOT/install/network-setup.sh"
+        source "$REPO_ROOT/install/network-setup.sh"
 
         if ! has_internet; then
             log "[!] Still no internet connection. Aborting."
@@ -90,12 +107,12 @@ log "[*] All required install checks ready."
 log "[*] Running system checks..."
 echo
 
-if ! bash "$REPO_ROOT/install/secure-boot.sh"; then
+if ! source "$REPO_ROOT/install/secure-boot.sh"; then
     log "[!] Secure Boot check failed."
     exit 1
 fi
 
-if ! bash "$REPO_ROOT/install/pacman-mirrors.sh"; then
+if ! source "$REPO_ROOT/install/pacman-mirrors.sh"; then
     log "[!] Pacman mirrors check failed."
     exit 1
 fi

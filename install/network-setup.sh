@@ -8,11 +8,10 @@ IFS=$'\n\t'
 
 : "${REPO_ROOT:=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)}"
 CREDENTIALS_FILE="$REPO_ROOT/.wifi-credentials"
-LOG_FILE="/tmp/network-setup.log"
 VERBOSE=true
 
 # shellcheck source=/dev/null
-source "$REPO_ROOT/install/lib/common.sh"
+source "$REPO_ROOT/install/lib/bootstrap.sh"
 
 # CHECK ETHERNET -------------------------------------------------------
 
