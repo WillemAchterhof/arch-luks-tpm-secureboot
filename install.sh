@@ -31,9 +31,9 @@ case "$STATE" in
         ;;
 esac
 
+
 GITHUB_RAW="https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main"
 
-LOG_FILE="/tmp/install.log"
 VERBOSE=true
 
 # Ensure root
@@ -46,6 +46,7 @@ echo "================================================="
 echo
 
 # NETWORK CHECK / SETUP ------------------------------------------------
+echo "DEBUG STATE: $STATE"
 
 if has_internet; then
     log "[*] Internet connection detected."
