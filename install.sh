@@ -1,31 +1,32 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+export BOOTSTRAP_LIB="$REPO_ROOT/install/lib/bootstrap.sh"
 
-source "$REPO_ROOT/install/lib/bootstrap.sh"
+source "$BOOTSTRAP_LIB"
 
 ensure_root
 load_state
 
 case "$STATE" in
     precheck)
-        source "$REPO_ROOT/install/network-setup.sh"
+        batch "$INSTALL_FOLDER/network-setup.sh"
         STATE="secureboot"
         save_state
         ;;
     secureboot)
-        source "$REPO_ROOT/install/secure-boot.sh"
+        batch "$INSTALL_FOLDER/secure-boot.sh"
         STATE="pacman"
         save_state
         ;;
     pacman)
-        source "$REPO_ROOT/install/pacman.sh"
+        batch "$INSTALL_FOLDER/pacman.sh"
         STATE="menu"
         save_state
         ;;
     menu)
-        source "$REPO_ROOT/install/menu.sh"
+        batch "$INSTALL_FOLDER/menu.sh"
         STATE="done"
         save_state
         ;;
@@ -35,9 +36,6 @@ esac
 GITHUB_RAW="https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main"
 
 VERBOSE=true
-
-# Ensure root
-ensure_root
 
 clear
 echo "================================================="
@@ -53,9 +51,9 @@ if has_internet; then
 else
     log "[!] No internet connection detected."
 
-    if [[ -f "$REPO_ROOT/install/network-setup.sh" ]]; then
+    if [[ -f "$INSTALL_FOLDER/network-setup.sh" ]]; then
         log "[*] Launching network setup..."
-        source "$REPO_ROOT/install/network-setup.sh"
+        batch "$INSTALL_FOLDER/network-setup.sh"
 
         if ! has_internet; then
             log "[!] Still no internet connection. Aborting."
@@ -81,8 +79,8 @@ fi
 
 CHECK_FILES=(
     # "install/file-integrity-check.sh"
-    "install/secure-boot.sh"
-    "install/pacman-mirrors.sh"
+    "$INSTALL_FOLDER/secure-boot.sh"
+    "$INSTALL_FOLDER/pacman-mirrors.sh"
 )
 
 log "[*] Verifying required install check files..."
@@ -98,7 +96,7 @@ for f in "${CHECK_FILES[@]}"; do
 done
 
 shopt -s nullglob
-chmod +x "$REPO_ROOT"/install/*.sh || true
+chmod +x "$INSTALL_FOLDER"/*.sh || true
 shopt -u nullglob
 
 log "[*] All required install checks ready."
@@ -108,12 +106,12 @@ log "[*] All required install checks ready."
 log "[*] Running system checks..."
 echo
 
-if ! source "$REPO_ROOT/install/secure-boot.sh"; then
+if ! batch "$INSTALL_FOLDER/secure-boot.sh"; then
     log "[!] Secure Boot check failed."
     exit 1
 fi
 
-if ! source "$REPO_ROOT/install/pacman-mirrors.sh"; then
+if ! batch "$INSTALL_FOLDER/pacman-mirrors.sh"; then
     log "[!] Pacman mirrors check failed."
     exit 1
 fi
@@ -124,7 +122,7 @@ log "[*] System checks complete — ready to configure."
 
 if [[ -f "$REPO_ROOT/menu.sh" ]]; then
     # shellcheck source=/dev/null
-    source "$REPO_ROOT/menu.sh"
+    batch "$REPO_ROOT/menu.sh"
     main_menu
 else
     log "[!] Menu file not found: $REPO_ROOT/menu.sh"
