@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # ==============================================================================
-#  Arch Secure Installer — Engine (Final Refined Version)
+#  Arch Secure Installer — Engine
 # ==============================================================================
 #  Responsibilities:
 #    • Drive the installation state machine
@@ -27,7 +27,7 @@ export LIB_DIR="$INSTALL_FOLDER/lib"
 # Load framework (log, fatal, batch, state, ensure_uefi)
 source "$LIB_DIR/bootstrap.sh"
 
-# OUTPUT_FOLDER, STATE_FILE, LOG_FILE come from file_paths.sh (inside bootstrap)
+# All folders come from file_paths.sh (inside bootstrap)
 mkdir -p "$LOG_FOLDER" "$STATE_FOLDER" "$SB_ROOT" "$PROFILE_FOLDER"
 
 ensure_uefi
@@ -87,12 +87,7 @@ select_mode() {
         echo "    2) Load Default Profile (Willem)"
         echo "    3) Abort"
         echo
-        read -rp "  C-----------------------------------"
-    echo "  Press ENTER to continue"
-    echo "  Press E to edit settings"
-    echo "  Press Q to abort"
-    echo
-}hoice: " choice
+        read -rp "  Choice: " choice
 
         case "${choice:-}" in
             1)
@@ -100,23 +95,15 @@ select_mode() {
                 INSTALL_PROFILE="interactive"
                 return
                 ;;
-
             2)
                 INSTALL_MODE="profile"
                 source "$INSTALL_FOLDER/profiles/default.conf"
                 INSTALL_PROFILE="willem"
                 return
                 ;;
-
             3)
                 fatal "User aborted."
-                ;;-----------------------------------"
-    echo "  Press ENTER to continue"
-    echo "  Press E to edit settings"
-    echo "  Press Q to abort"
-    echo
-}
-
+                ;;
             *)
                 log "[!] Invalid selection — try again."
                 ;;
@@ -131,12 +118,7 @@ select_mode() {
 
 confirm_disk_destruction() {
     clear
-    echo "============-----------------------------------"
-    echo "  Press ENTER to continue"
-    echo "  Press E to edit settings"
-    echo "  Press Q to abort"
-    echo
-}====================================="
+    echo "================================================="
     echo "                   WARNING"
     echo "================================================="
     echo
@@ -158,12 +140,7 @@ confirm_secureboot_enroll() {
     clear
     echo "================================================="
     echo "            SECURE BOOT — CUSTOM MODE"
-    echo "============-----------------------------------"
-    echo "  Press ENTER to continue"
-    echo "  Press E to edit settings"
-    echo "  Press Q to abort"
-    echo
-}====================================="
+    echo "================================================="
     echo
     echo "  This will:"
     echo "    - Delete all PK/KEK/DB keys"
@@ -194,10 +171,9 @@ run_installation() {
         secureboot)
             batch "$INSTALL_FOLDER/secure_boot.sh"
 
-            # Load variable from secure_boot.sh output
             [[ -f "$SB_CHOICE_FILE" ]] || fatal "Secure Boot choice file missing"
             source "$SB_CHOICE_FILE"
-            
+
             [[ -n "${SB_MODE:-}" ]] || fatal "SB_MODE not set"
             export SB_MODE
 
@@ -268,6 +244,7 @@ run_installation() {
             echo "================================================="
             log "=== Installation complete ==="
             ;;
+
         *)
             fatal "Unknown state: $STATE"
             ;;
@@ -276,7 +253,7 @@ run_installation() {
 
 
 # ==============================================================================
-# MAIN LOOP (state‑driven, not infinite)
+# MAIN LOOP (state-driven, not infinite)
 # ==============================================================================
 
 while [[ "$STATE" != "done" ]]; do
