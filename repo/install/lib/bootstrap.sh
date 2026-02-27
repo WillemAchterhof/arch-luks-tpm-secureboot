@@ -1,20 +1,20 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-LIB_DIR="$REPO_ROOT/install/lib"
+LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-safe_source() {
-    local file="$1"
+source "$LIB_DIR/file_paths.sh"
+source "$LIB_DIR/logging.sh"
+source "$LIB_DIR/state.sh"
+source "$LIB_DIR/common.sh"
 
-    if [[ ! -f "$file" ]]; then
-        echo "[FATAL] Required library missing: $file"
-        exit 1
-    fi
-
-    source "$file"
+ensure_uefi() {
+    [[ -d /sys/firmware/efi ]] || fatal "System not booted in UEFI mode."
 }
 
-safe_source "$LIB_DIR/file_paths.sh"
-safe_source "$LIB_DIR/logging.sh"
-safe_source "$LIB_DIR/state.sh"
-safe_source "$LIB_DIR/common.sh"
+batch() {
+    local script="$1"
+    [[ -f "$script" ]] || fatal "Missing phase: $script"
+    log "[*] Running: $(basename "$script")"
+    source "$script"
+}

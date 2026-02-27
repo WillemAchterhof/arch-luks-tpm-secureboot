@@ -1,32 +1,41 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# ------------------------------------------------------------------------------
+# File Path Definitions (Pure Configuration)
+# ------------------------------------------------------------------------------
 
-# ==============================================================================
-#  file_paths.sh — Central path definitions for the Arch Secure Installer
-#  Requires: REPO_ROOT exported by install.sh before sourcing
-# ==============================================================================
+: "${LIB_DIR:?LIB_DIR not set before sourcing file_paths.sh}"
 
-: "${REPO_ROOT:?REPO_ROOT must be set before sourcing file_paths.sh}"
+INSTALL_DIR="$(cd "$LIB_DIR/.." && pwd)"
+REPO_ROOT="$(cd "$INSTALL_DIR/.." && pwd)"
+USB_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
 
-# ==============================================================================
-# CORE FOLDERS
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# Output Folders
+# ------------------------------------------------------------------------------
 
-INSTALL_FOLDER="$REPO_ROOT/install"
-LIB_FOLDER="$INSTALL_FOLDER/lib"
-OUTPUT_FOLDER="$REPO_ROOT/output"
+OUTPUT_FOLDER="$USB_ROOT/output"
 
-# ==============================================================================
-# OUTPUT SUBFOLDERS
-# ==============================================================================
-
-LOG_FOLDER="$OUTPUT_FOLDER/logs"
+LOG_FOLDER="$OUTPUT_FOLDER/log"
 STATE_FOLDER="$OUTPUT_FOLDER/state"
+PROFILE_FOLDER="$OUTPUT_FOLDER/profile"
+SB_ROOT="$OUTPUT_FOLDER/secureboot"
 
-# ==============================================================================
-# CREATE OUTPUT DIRECTORIES
-# ==============================================================================
+# ------------------------------------------------------------------------------
+# File Paths
+# ------------------------------------------------------------------------------
+SB_CHOICE_FILE="$SB_ROOT/choice"
 
-mkdir -p \
-    "$LOG_FOLDER" \
-    "$STATE_FOLDER"
+# ------------------------------------------------------------------------------
+# Export Everything Explicitly
+# ------------------------------------------------------------------------------
+
+export INSTALL_DIR
+export REPO_ROOT
+export USB_ROOT
+export OUTPUT_FOLDER
+export LOG_FOLDER
+export STATE_FOLDER
+export PROFILE_FOLDER
+export SB_ROOT
+
+export SB_CHOICE_FILE
