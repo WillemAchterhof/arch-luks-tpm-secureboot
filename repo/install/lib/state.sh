@@ -14,6 +14,8 @@ _VALID_STATES=(
     summary
     confirm
     execute
+    preboot_done
+    postboot
     done
 )
 
