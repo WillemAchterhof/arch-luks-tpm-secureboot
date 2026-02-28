@@ -35,7 +35,7 @@ configure_mkinitcpio() {
         /etc/mkinitcpio.conf
 
     arch-chroot "$MNT" sed -i \
-        's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt filesystems fsck)|' \
+        's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt plymouth filesystems fsck)|' \
         /etc/mkinitcpio.conf
 
     arch-chroot "$MNT" sed -i \
@@ -59,7 +59,7 @@ configure_cmdline() {
     mkdir -p "$MNT/etc/kernel"
 
     cat > "$MNT/etc/kernel/cmdline" <<EOF
-rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0+7 root=/dev/mapper/cryptroot rootfstype=$ROOT_FS rw lsm=lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality quiet
+quiet splash rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0+7 root=/dev/mapper/cryptroot rootfstype=$ROOT_FS rw lsm=lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality plymouth
 EOF
 
     log "[*] Kernel cmdline written."

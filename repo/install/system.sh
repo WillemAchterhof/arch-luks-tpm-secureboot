@@ -64,6 +64,7 @@ install_base() {
         libpwquality \
         polkit \
         tar gzip unzip p7zip \
+        plymouth \
         "$SHELL_PKG" \
         ${EXTRA_PACKAGES:-}
 
