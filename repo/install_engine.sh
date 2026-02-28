@@ -21,13 +21,10 @@ set -euo pipefail
 # ==============================================================================
 
 export REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export INSTALL_FOLDER="$REPO_ROOT/install"
-export LIB_DIR="$INSTALL_FOLDER/lib"
 
-# Load framework (log, fatal, batch, state, ensure_uefi)
-source "$LIB_DIR/bootstrap.sh"
+source "$REPO_ROOT/install/lib/bootstrap.sh"
 
-# All folders come from file_paths.sh (inside bootstrap)
+# All folders come from file_paths.sh (loaded by bootstrap)
 mkdir -p "$LOG_FOLDER" "$STATE_FOLDER" "$SB_ROOT" "$PROFILE_FOLDER"
 
 ensure_uefi
@@ -97,7 +94,7 @@ select_mode() {
                 ;;
             2)
                 INSTALL_MODE="profile"
-                source "$INSTALL_FOLDER/profiles/default.conf"
+                source "$PROFILES_DIR/default.conf"
                 INSTALL_PROFILE="willem"
                 return
                 ;;
@@ -169,7 +166,7 @@ run_installation() {
             ;;
 
         secureboot)
-            batch "$INSTALL_FOLDER/secure_boot.sh"
+            batch "$INSTALL_ROOT/secure_boot.sh"
 
             [[ -f "$SB_CHOICE_FILE" ]] || fatal "Secure Boot choice file missing"
             source "$SB_CHOICE_FILE"
@@ -182,7 +179,7 @@ run_installation() {
             ;;
 
         diskdetect)
-            batch "$INSTALL_FOLDER/disk/get_disks.sh"
+            batch "$DISK_FOLDER/get_disks.sh"
 
             [[ -n "${TARGET_DISK:-}" ]] || fatal "TARGET_DISK missing from get_disks.sh"
             export TARGET_DISK
@@ -195,7 +192,7 @@ run_installation() {
             if [[ "$INSTALL_MODE" == "profile" ]]; then
                 log "[*] Loaded profile: $INSTALL_PROFILE"
             else
-                batch "$INSTALL_FOLDER/edit_profile.sh"
+                batch "$INSTALL_ROOT/edit_profile.sh"
             fi
 
             STATE="summary"
@@ -208,7 +205,7 @@ run_installation() {
 
             case "${input:-}" in
                 E|e)
-                    batch "$INSTALL_FOLDER/edit_profile.sh"
+                    batch "$INSTALL_ROOT/edit_profile.sh"
                     ;;
                 Q|q)
                     fatal "User aborted."
@@ -228,10 +225,12 @@ run_installation() {
             ;;
 
         execute)
-            batch "$INSTALL_FOLDER/precheck.sh"
-            batch "$INSTALL_FOLDER/pacman_mirrors.sh"
-            batch "$INSTALL_FOLDER/disk/disk_setup.sh"
-            batch "$INSTALL_FOLDER/system.sh"
+            batch "$INSTALL_ROOT/precheck.sh"
+            batch "$INSTALL_ROOT/pacman_mirrors.sh"
+            batch "$DISK_FOLDER/disk_setup.sh"
+            batch "$INSTALL_ROOT/system.sh"
+            batch "$INSTALL_ROOT/boot_loader.sh"
+            batch "$INSTALL_ROOT/secureboot_enroll.sh"
 
             STATE="done"
             save_state
