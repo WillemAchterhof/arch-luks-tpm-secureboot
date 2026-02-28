@@ -230,7 +230,7 @@ run_installation() {
         execute)
             batch "$INSTALL_FOLDER/precheck.sh"
             batch "$INSTALL_FOLDER/pacman_mirrors.sh"
-            batch "$INSTALL_FOLDER/disk/setup.sh"
+            batch "$INSTALL_FOLDER/disk/disk_setup.sh"
             batch "$INSTALL_FOLDER/system.sh"
 
             STATE="done"

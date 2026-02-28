@@ -5,11 +5,12 @@ IFS=$'\n\t'
 # ==============================================================================
 #  Arch Secure Installer — secure_boot.sh
 #  Detects Secure Boot state, prompts for enrollment mode
-#  Writes SB_MODE to $SB_ROOT/choice
+#  Writes SB_MODE to $SB_CHOICE_FILE
 # ==============================================================================
 
 : "${STATE_FOLDER:?STATE_FOLDER not set}"
 : "${SB_ROOT:?SB_ROOT not set}"
+: "${SB_CHOICE_FILE:?SB_CHOICE_FILE not set}"
 
 INSTALLATION_ABORTED=false
 
@@ -38,7 +39,7 @@ detect_secureboot() {
     done
 
     if [[ -n "$SB_FILE" ]]; then
-        value=$(tail -c +5 "$SB_FILE" | hexdump -v -e '1/1 "%d"' | tr -d '\n')
+        value=$(tail -c +5 "$SB_FILE" | hexdump -v -e '1/1 "%d"' | tr -d '\n[:space:]')
         [[ "$value" == "1" ]] && SB_ENABLED=true
     fi
 
@@ -47,7 +48,7 @@ detect_secureboot() {
     done
 
     if [[ -n "$SM_FILE" ]]; then
-        value=$(tail -c +5 "$SM_FILE" | hexdump -v -e '1/1 "%d"' | tr -d '\n')
+        value=$(tail -c +5 "$SM_FILE" | hexdump -v -e '1/1 "%d"' | tr -d '\n[:space:]')
         [[ "$value" == "1" ]] && SB_SETUP_MODE=true
     fi
 
@@ -64,6 +65,7 @@ write_choice() {
     printf 'SB_MODE=%s\n' "$mode" > "$SB_CHOICE_FILE"
     chmod 600 "$SB_CHOICE_FILE"
     log "[*] Secure Boot mode saved: $mode"
+    export SB_MODE="$mode"
 }
 
 # ==============================================================================
@@ -108,6 +110,8 @@ present_options() {
 # ==============================================================================
 
 select_secureboot_mode() {
+    local SB_CHOICE REBOOT_CHOICE
+
     while true; do
         read -rp "  Select [1]: " SB_CHOICE
         SB_CHOICE="${SB_CHOICE:-1}"
@@ -149,6 +153,7 @@ select_secureboot_mode() {
                             log "[*] Rebooting to UEFI firmware..."
                             sleep 2
                             systemctl reboot --firmware-setup
+                            exit 0
                             ;;
                         2)
                             write_choice "microsoft"
@@ -189,6 +194,9 @@ final_confirmation() {
 
     [[ -n "${SB_MODE:-}" ]] \
         || fatal "SB_MODE not set in choice file."
+
+    [[ "$SB_MODE" == "microsoft" || "$SB_MODE" == "custom" ]] \
+        || fatal "Invalid SB_MODE value: $SB_MODE"
 
     log "================================================="
     log "   Secure Boot choice confirmed"
