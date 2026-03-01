@@ -54,5 +54,6 @@ export LOG_FOLDER
 export STATE_FOLDER
 export PROFILE_FOLDER
 export SB_ROOT
+
 export SB_CHOICE_FILE
 export LUKS_KEY_FILE
