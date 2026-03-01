@@ -79,7 +79,7 @@ validate_pinned_commit() {
 verify_repo_structure() {
     local ok=true
     local files=(
-        "$INSTALL_ROOT/install_engine.sh"
+        "$INSTALL_ROOT/nstall_engine.sh"
         "$INSTALL_ROOT/install/lib/bootstrap.sh"
         "$INSTALL_ROOT/install/lib/common.sh"
         "$INSTALL_ROOT/install/lib/file_paths.sh"

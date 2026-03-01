@@ -173,9 +173,15 @@ configure_user() {
     shell_path=$(arch-chroot "$MNT" command -v "$SHELL_PKG" 2>/dev/null \
         || echo "/bin/bash")
 
+    # wheel always required, USER_GROUPS adds extras
+    local groups="wheel"
+    if [[ -n "${USER_GROUPS:-}" ]]; then
+        groups="wheel,$USER_GROUPS"
+    fi
+
     arch-chroot "$MNT" useradd \
         -m \
-        -G wheel \
+        -G "$groups" \
         -s "$shell_path" \
         "$USERNAME"
 
