@@ -7,9 +7,8 @@ set -euo pipefail
 #  Goals:
 #    • Use repo/ if present + valid
 #    • Else restore from repo.bundle + minisign signature
-#    • Else download pinned commit from GitHub (pinned commit only)
-#    • Verify pinned commit ALWAYS (bundle or GitHub)
-#    • Atomic install via rsync → .new → rotate
+#    • Else download from GitHub
+#    • Rotate: rename repo/ → repo.old/, install fresh repo/
 #    • Launch install_engine.sh from repo/
 # ==============================================================================
 
@@ -28,7 +27,42 @@ fi
 # ------------------------------------------------------------------------------
 
 REPO_URL="https://github.com/WillemAchterhof/arch-luks-tpm-secureboot.git"
-PINNED_COMMIT="abcd1234ef567890abcdef1234567890abcdef12"  # TODO: replace with real SHA
+PINNED_COMMIT="skip"  # TODO: replace with real 40-char SHA when ready
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INSTALL_ROOT="$SCRIPT_DIR/repo"
+
+BUNDLE_FILE="$SCRIPT_DIR/repo.bundle"
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ==============================================================================
+#  Arch Secure Installer — Single-Script Bootstrap
+# ==============================================================================
+#  Goals:
+#    • Use repo/ if present + valid
+#    • Else restore from repo.bundle + minisign signature
+#    • Else download from GitHub
+#    • Rotate: rename repo/ → repo.old/, install fresh repo/
+#    • Launch install_engine.sh from repo/
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Check for root
+# ------------------------------------------------------------------------------
+
+if [[ $EUID -ne 0 ]]; then
+    printf "\n[FATAL] Must be run as root.\n"
+    printf "        sudo bash arch_secure_install.sh\n\n"
+    exit 1
+fi
+
+# ------------------------------------------------------------------------------
+# Configuration
+# ------------------------------------------------------------------------------
+
+REPO_URL="https://github.com/WillemAchterhof/arch-luks-tpm-secureboot.git"
+PINNED_COMMIT="skip"  # TODO: replace with real 40-char SHA when ready
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALL_ROOT="$SCRIPT_DIR/repo"
@@ -68,8 +102,17 @@ internet_ok() {
 }
 
 validate_pinned_commit() {
+    [[ "$PINNED_COMMIT" == "skip" ]] && return 0
     [[ "$PINNED_COMMIT" =~ ^[0-9a-f]{40}$ ]] \
         || fatal "PINNED_COMMIT is not a valid 40-char SHA-1 hash."
+}
+
+ensure_git() {
+    if ! command -v git &>/dev/null; then
+        msg "git not found — installing..."
+        pacman -Sy --noconfirm git \
+            || fatal "Failed to install git."
+    fi
 }
 
 # ------------------------------------------------------------------------------
@@ -77,16 +120,18 @@ validate_pinned_commit() {
 # ------------------------------------------------------------------------------
 
 verify_repo_structure() {
+    # Step 1 — manifest must exist
+    local manifest="$INSTALL_ROOT/install/lib/required_files.conf"
+    [[ -f "$manifest" ]] || { echo "  missing: install/lib/required_files.conf"; return 1; }
+
+    # Step 2 — check every file listed in manifest
     local ok=true
-    local files=(
-        "$INSTALL_ROOT/nstall_engine.sh"
-        "$INSTALL_ROOT/install/lib/bootstrap.sh"
-        "$INSTALL_ROOT/install/lib/common.sh"
-        "$INSTALL_ROOT/install/lib/file_paths.sh"
-    )
-    for f in "${files[@]}"; do
-        [[ -f "$f" ]] || { echo "  missing: $f"; ok=false; }
-    done
+    while IFS= read -r file; do
+        [[ -z "$file" || "$file" == \#* ]] && continue
+        [[ -f "$INSTALL_ROOT/$file" ]] \
+            || { echo "  missing: $file"; ok=false; }
+    done < "$manifest"
+
     [[ "$ok" == true ]]
 }
 
@@ -96,6 +141,7 @@ verify_repo_checksums() {
 }
 
 verify_repo_commit() {
+    [[ "$PINNED_COMMIT" == "skip" ]] && return 0
     [[ -d "$INSTALL_ROOT/.git" ]] || return 1
 
     local repo_commit
@@ -118,25 +164,28 @@ verify_repo() {
 }
 
 # ------------------------------------------------------------------------------
-# Atomic Staging + Rotation
+# Rotation: repo/ → repo.old/, fresh clone → repo/
 # ------------------------------------------------------------------------------
 
-stage_and_rotate_repo() {
-    local TMP_NEW="${INSTALL_ROOT}.new"
-    local TMP_OLD="${INSTALL_ROOT}.old"
+rotate_repo() {
+    # Remove previous backup if exists
+    [[ -d "$SCRIPT_DIR/repo.old" ]] && rm -rf "$SCRIPT_DIR/repo.old"
 
-    rm -rf "$TMP_NEW"
+    # Rename current repo to repo.old
+    [[ -d "$INSTALL_ROOT" ]] && mv "$INSTALL_ROOT" "$SCRIPT_DIR/repo.old"
 
-    rsync -a --delete "$TEMP_DIR/" "$TMP_NEW/" \
-        || fatal "rsync failed during staging."
+    # Copy fresh clone into repo/
+    rsync -a "$TEMP_DIR/repo/" "$INSTALL_ROOT/" \
+        || fatal "rsync failed during repo install."
 
-    [[ -f "$TMP_NEW/install_engine.sh" ]] \
-        || fatal "install_engine.sh missing after copy."
+    # Verify install_engine.sh landed correctly
+    [[ -f "$INSTALL_ROOT/install_engine.sh" ]] \
+        || fatal "install_engine.sh missing after install."
 
-    [[ -d "$INSTALL_ROOT" ]] && mv "$INSTALL_ROOT" "$TMP_OLD"
-    mv "$TMP_NEW" "$INSTALL_ROOT"
+    # Remove backup — all good
+    rm -rf "$SCRIPT_DIR/repo.old"
 
-    rm -rf "$TMP_OLD"
+    msg "Repo installed."
 }
 
 # ------------------------------------------------------------------------------
@@ -147,7 +196,7 @@ install_from_bundle() {
     msg "Restoring repo from minisign-verified bundle"
 
     need_cmd minisign
-    need_cmd git
+    ensure_git
 
     [[ -f "$BUNDLE_FILE" ]] || fatal "repo.bundle missing."
     [[ -f "$BUNDLE_SIG"  ]] || fatal "repo.bundle.minisig missing."
@@ -163,41 +212,45 @@ install_from_bundle() {
     git clone "$BUNDLE_FILE" "$TEMP_DIR" \
         || fatal "Bundle clone failed."
 
-    local cl_commit
-    cl_commit="$(git -C "$TEMP_DIR" rev-parse HEAD)"
-
-    [[ "$cl_commit" == "$PINNED_COMMIT" ]] || fatal "Bundle commit mismatch:
+    if [[ "$PINNED_COMMIT" != "skip" ]]; then
+        local cl_commit
+        cl_commit="$(git -C "$TEMP_DIR" rev-parse HEAD)"
+        [[ "$cl_commit" == "$PINNED_COMMIT" ]] \
+            || fatal "Bundle commit mismatch:
 expected: $PINNED_COMMIT
 got:      $cl_commit"
+    fi
 
-    stage_and_rotate_repo
+    rotate_repo
 }
 
 # ------------------------------------------------------------------------------
-# Download From GitHub (Pinned Commit Only)
+# Download From GitHub
 # ------------------------------------------------------------------------------
 
 download_repo() {
-    msg "Fetching repo from GitHub…"
+    msg "Fetching repo from GitHub..."
 
-    need_cmd git
+    ensure_git
     internet_ok || fatal "No internet available for GitHub fetch."
 
     TEMP_DIR="$(mktemp -d)"
 
-    git clone --no-checkout "$REPO_URL" "$TEMP_DIR" \
-        || fatal "git clone failed."
+    if [[ "$PINNED_COMMIT" == "skip" ]]; then
+        git clone "$REPO_URL" "$TEMP_DIR" \
+            || fatal "git clone failed."
+    else
+        git clone --no-checkout "$REPO_URL" "$TEMP_DIR" \
+            || fatal "git clone failed."
 
-    git -C "$TEMP_DIR" fetch --depth 1 origin "$PINNED_COMMIT" \
-        || fatal "Pinned commit not found in remote."
+        git -C "$TEMP_DIR" fetch --depth 1 origin "$PINNED_COMMIT" \
+            || fatal "Pinned commit not found in remote."
 
-    git -C "$TEMP_DIR" checkout "$PINNED_COMMIT" \
-        || fatal "Could not checkout pinned commit."
+        git -C "$TEMP_DIR" checkout "$PINNED_COMMIT" \
+            || fatal "Could not checkout pinned commit."
+    fi
 
-    git -C "$TEMP_DIR" reset --hard \
-        || fatal "Failed to populate working tree."
-
-    stage_and_rotate_repo
+    rotate_repo
 }
 
 # ------------------------------------------------------------------------------
@@ -217,7 +270,6 @@ and complete the installation.
 
 Use iwctl to connect your Wi-Fi:
 
-
     iwctl device list
     iwctl station <adapter> scan
     iwctl station <adapter> get-networks
@@ -226,40 +278,40 @@ Use iwctl to connect your Wi-Fi:
 Then re-run: bash arch_secure_install.sh
 
 EOF
-     exit 1
+    exit 1
 fi
 
 if [[ -d "$INSTALL_ROOT" ]]; then
-    msg "Existing repo found — verifying…"
+    msg "Existing repo found — verifying..."
 
     if verify_repo && verify_repo_commit; then
         msg "Repo OK."
     else
-        msg "Repo corrupted — attempting repair…"
+        msg "Repo invalid — reinstalling..."
 
         if [[ -f "$BUNDLE_FILE" && -f "$BUNDLE_SIG" ]]; then
             install_from_bundle
         else
-            msg "Bundle missing — falling back to GitHub"
+            msg "No bundle — fetching from GitHub..."
             download_repo
         fi
 
-        verify_repo        || fatal "Repo invalid after repair."
-        verify_repo_commit || fatal "Commit mismatch after repair."
+        verify_repo        || fatal "Repo invalid after reinstall."
+        verify_repo_commit || fatal "Commit mismatch after reinstall."
     fi
 
 else
-    msg "Repo missing — restoring…"
+    msg "Repo missing — installing..."
 
     if [[ -f "$BUNDLE_FILE" && -f "$BUNDLE_SIG" ]]; then
         install_from_bundle
     else
-        msg "Bundle missing — requiring internet for GitHub fetch…"
+        msg "No bundle — fetching from GitHub..."
         download_repo
     fi
 
-    verify_repo        || fatal "Repo invalid after restore."
-    verify_repo_commit || fatal "Commit mismatch after restore."
+    verify_repo        || fatal "Repo invalid after install."
+    verify_repo_commit || fatal "Commit mismatch after install."
 fi
 
 # ------------------------------------------------------------------------------
@@ -268,5 +320,5 @@ fi
 
 find "$INSTALL_ROOT" -name "*.sh" -exec chmod 750 {} \;
 
-msg "Bootstrap complete — launching installer…"
+msg "Bootstrap complete — launching installer..."
 exec "$INSTALL_ROOT/install_engine.sh"
