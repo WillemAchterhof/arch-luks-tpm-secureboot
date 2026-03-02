@@ -37,7 +37,7 @@ log "=== Arch Secure Installer Engine Starting ==="
 # ==============================================================================
 
 detect_environment() {
-    if [[ -d /run/archiso ]]; thef valun
+    if [[ -d /run/archiso ]]; then
         INSTALL_ENV="LIVE"
     else
         INSTALL_ENV="INSTALLED"
