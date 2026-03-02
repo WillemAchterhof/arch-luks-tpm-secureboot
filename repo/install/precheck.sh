@@ -40,7 +40,6 @@ check_commands() {
         sgdisk
         wipefs
         cryptsetup
-        sbctl
         reflector
         pacstrap
         genfstab
@@ -50,8 +49,6 @@ check_commands() {
         mkfs.ext4
         blkid
         lsblk
-        efibootmgr
-        mkinitcpio
         timedatectl
         systemctl
         curl
@@ -86,15 +83,15 @@ check_tpm() {
 check_profile() {
     log "[*] Validating profile variables..."
 
-    # HOSTNAME — no spaces, no special chars, max 63 chars
-    if [[ -n "${HOSTNAME:-}" ]]; then
-        if [[ "$HOSTNAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$ ]]; then
-            pass_check "HOSTNAME: $HOSTNAME"
+    # INSTALL_HOSTNAME — no spaces, no special chars, max 63 chars
+    if [[ -n "${INSTALL_HOSTNAME:-}" ]]; then
+        if [[ "$INSTALL_HOSTNAME" =~ ^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?$ ]]; then
+            pass_check "INSTALL_HOSTNAME: $INSTALL_HOSTNAME"
         else
-            fail_check "HOSTNAME invalid (letters, numbers, hyphens only, max 63 chars): $HOSTNAME"
+            fail_check "INSTALL_HOSTNAME invalid (letters, numbers, hyphens only, max 63 chars): $INSTALL_HOSTNAME"
         fi
     else
-        fail_check "HOSTNAME is not set"
+        fail_check "INSTALL_HOSTNAME is not set"
     fi
 
     # USERNAME — lowercase, no special chars, no spaces
@@ -143,8 +140,10 @@ check_profile() {
         fail_check "SB_MODE is not set"
     fi
 
-    # TARGET_DISK — must be a valid block device if set by profile
-    if [[ -n "${TARGET_DISK:-}" ]]; then
+    # TARGET_DISK — must be set and a valid block device
+    if [[ -z "${TARGET_DISK:-}" ]]; then
+        fail_check "TARGET_DISK is not set"
+    else
         if [[ -b "$TARGET_DISK" ]]; then
             pass_check "TARGET_DISK exists: $TARGET_DISK"
         else
@@ -225,4 +224,4 @@ if [[ "$CHECKS_PASSED" == "false" ]]; then
     fatal "One or more pre-flight checks failed — aborting installation."
 fi
 
-log "[*] All pre-flight checks passed."v
+log "[*] All pre-flight checks passed."
