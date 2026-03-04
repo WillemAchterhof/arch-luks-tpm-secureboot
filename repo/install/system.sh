@@ -91,7 +91,7 @@ configure_pacman() {
     arch-chroot "$MNT" pacman -Syu --noconfirm
 }
 
-# ==========================/ if present + valid====================================================
+# ==============================================================================
 # TIMEZONE
 # ==============================================================================
 
@@ -115,7 +115,7 @@ configure_locale() {
     arch-chroot "$MNT" locale-gen
 
     printf 'LANG=en_US.UTF-8\n'  > "$MNT/etc/locale.conf"
-    printf 'KEYMAP=us\n'     / if present + valid    > "$MNT/etc/vconsole.conf"
+    printf 'KEYMAP=us\n'         > "$MNT/etc/vconsole.conf"
 
     log "[*] Locale configured."
 }
@@ -138,7 +138,7 @@ EOF
     log "[*] Hostname configured."
 }
 
-# ============================/ if present + valid==================================================
+# ==============================================================================
 # USER
 # ==============================================================================
 
@@ -168,7 +168,7 @@ configure_user() {
     # Lock root
     arch-chroot "$MNT" passwd -l root
     log "[*] Root account locked."
-/ if present + valid
+
     log "[*] User $USERNAME created."
 }
 
@@ -195,7 +195,7 @@ ethernet.cloned-mac-address=random
 EOF
 
     # Firewall
-    [[ -f "$sys_cfg/nftables.c/ if present + validonf" ]] \
+    [[ -f "$sys_cfg/nftables.conf" ]] \
         || fatal "Missing config: $sys_cfg/nftables.conf"
     cp "$sys_cfg/nftables.conf"     "$MNT/etc/nftables.conf"
 
@@ -257,7 +257,7 @@ deploy_postboot_autostart() {
 
     arch-chroot "$MNT" chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/Documents"
 
-    cat >> "$profile" <<\'BASHEOF\'
+    cat >> "$profile" <<'BASHEOF'
 # ARCH_POSTBOOT_START
 if [[ -f "$HOME/Documents/arch_secure_install.sh" ]]; then
     echo
@@ -274,7 +274,7 @@ if [[ -f "$HOME/Documents/arch_secure_install.sh" ]]; then
     sudo bash "$HOME/Documents/arch_secure_install.sh"
 fi
 # ARCH_POSTBOOT_END
-\'BASHEOF\'
+BASHEOF
 
     arch-chroot "$MNT" chown "$USERNAME:$USERNAME" "/home/$USERNAME/.bash_profile"
 

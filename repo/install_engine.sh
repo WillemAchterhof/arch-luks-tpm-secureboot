@@ -23,6 +23,7 @@ log "  Inspired by and grateful to:"
 log "    - JaKooLit (Arch-Hyprland)    https://github.com/JaKooLit/Arch-Hyprland"
 log "    - Ataraxxia (Secure Arch)     https://github.com/Ataraxxia/secure-arch"
 log ""
+sleep 2
 
 
 # ==============================================================================
@@ -166,10 +167,15 @@ confirm_disk_destruction() {
     echo
     echo "  WILL BE PERMANENTLY ERASED."
     echo
-    echo "  Type the exact device to continue:"
+    echo "  Type the exact device path to continue."
+    echo "  Type Q to abort."
     echo
 
-    confirm_exact "$TARGET_DISK" || fatal "Disk confirmation failed."
+    local input
+    read -rp "> " input
+
+    [[ "$input" == "Q" || "$input" == "q" ]] && fatal "User aborted at disk confirmation."
+    [[ "$input" == "$TARGET_DISK" ]] || fatal "Disk confirmation failed — aborting."
 }
 
 confirm_secureboot_enroll() {
