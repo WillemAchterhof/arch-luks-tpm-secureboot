@@ -26,10 +26,10 @@ preflight_checks() {
     mountpoint -q "$MNT" \
         || fatal "$MNT is not mounted."
 
-    arch-chroot "$MNT" command -v sbctl >/dev/null 2>&1 \
+    arch-chroot "$MNT" bash -c 'command -v sbctl' >/dev/null 2>&1 \
         || fatal "sbctl not installed in target system."
 
-    arch-chroot "$MNT" command -v mkinitcpio >/dev/null 2>&1 \
+    arch-chroot "$MNT" bash -c 'command -v mkinitcpio' >/dev/null 2>&1 \
         || fatal "mkinitcpio not installed in target system."
 
     # Verify UKI directory exists
