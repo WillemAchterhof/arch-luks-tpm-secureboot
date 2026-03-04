@@ -1,0 +1,12 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Operation = Remove
+Target = boot/EFI/Linux/*.efi
+
+[Action]
+Description = Signing UKIs with sbctl...
+When = PostTransaction
+Exec = /usr/bin/sbctl sign --path /boot/EFI/Linux
+NeedsTargets
