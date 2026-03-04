@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bas#!/usr/bin/env bash
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -59,7 +59,7 @@ configure_cmdline() {
     mkdir -p "$MNT/etc/kernel"
 
     cat > "$MNT/etc/kernel/cmdline" <<EOF
-quiet splash rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0+7 root=/dev/mapper/cryptroot rootfstype=$ROOT_FS rw lsm=lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality plymouth
+rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0+7 root=/dev/mapper/cryptroot rootfstype=$ROOT_FS rw lsm=lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality quiet splash
 EOF
 
     log "[*] Kernel cmdline written."
@@ -143,7 +143,6 @@ configure_efibootmgr() {
 configure_mkinitcpio
 configure_cmdline
 configure_uki_preset
-build_uki
 configure_efibootmgr
 
 log "[*] bootloader.sh complete."

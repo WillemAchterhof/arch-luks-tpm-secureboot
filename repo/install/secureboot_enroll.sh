@@ -5,12 +5,13 @@ IFS=$'\n\t'
 # ==============================================================================
 #  Arch Secure Installer — secureboot_enroll.sh
 #  Enroll Secure Boot keys (custom mode)
-#  or build/sign UKI only (microsoft mode)
+#  or sign UKI only (microsoft mode)
 # ==============================================================================
 
 : "${SB_MODE:?SB_MODE not set}"
 
 MNT="/mnt"
+UKI_PATH="/boot/EFI/Linux/arch-linux.efi"
 
 # ==============================================================================
 # PRE-FLIGHT CHECKS
@@ -30,6 +31,10 @@ preflight_checks() {
 
     arch-chroot "$MNT" command -v mkinitcpio >/dev/null 2>&1 \
         || fatal "mkinitcpio not installed in target system."
+
+    # Verify UKI directory exists
+    [[ -d "$MNT/boot/EFI/Linux" ]] \
+        || fatal "UKI directory missing: $MNT/boot/EFI/Linux — run bootloader.sh first."
 
     log "[*] Pre-flight checks OK."
 }
@@ -54,21 +59,37 @@ Enter UEFI firmware, clear Secure Boot keys, and rerun."
 }
 
 # ==============================================================================
-# VERIFY SECURE BOOT ENABLED POST-ENROLLMENT
+# REGISTER UKI WITH SBCTL
 # ==============================================================================
 
-verify_secureboot_enabled() {
-    log "[*] Verifying Secure Boot is enabled after enrollment..."
+register_uki() {
+    log "[*] Registering UKI with sbctl..."
 
-    local status
-    status="$(arch-chroot "$MNT" sbctl status 2>/dev/null || true)"
+    # Register the UKI path so sbctl sign-all knows what to sign
+    arch-chroot "$MNT" sbctl add-file "$UKI_PATH" \
+        || fatal "Failed to register UKI with sbctl."
 
-    if ! echo "$status" | grep -qiE "Secure Boot:\s*(enabled|true|yes)"; then
-        fatal "Secure Boot is NOT enabled after enrollment.
-Enter UEFI firmware, enable Secure Boot, and rerun."
-    fi
+    log "[*] UKI registered: $UKI_PATH"
+}
 
-    log "[*] Secure Boot is enabled."
+# ==============================================================================
+# BUILD AND SIGN UKI
+# ==============================================================================
+
+build_and_sign_uki() {
+    log "[*] Building UKI with mkinitcpio..."
+    arch-chroot "$MNT" mkinitcpio -P \
+        || fatal "mkinitcpio failed."
+
+    # Verify UKI was actually created
+    [[ -f "$MNT$UKI_PATH" ]] \
+        || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
+
+    log "[*] Signing UKI with sbctl..."
+    arch-chroot "$MNT" sbctl sign-all \
+        || fatal "sbctl sign-all failed."
+
+    log "[*] UKI built and signed."
 }
 
 # ==============================================================================
@@ -77,10 +98,10 @@ Enter UEFI firmware, enable Secure Boot, and rerun."
 
 enroll_custom_keys() {
     log "[*] Creating Secure Boot keys..."
-    arch-chroot "$MNT" sbctl create-keys
+    arch-chroot "$MNT" sbctl create-keys \
+        || fatal "sbctl create-keys failed."
 
-    log "[*] Building and signing UKI..."
-    arch-chroot "$MNT" mkinitcpio -P
+    register_uki
 
     clear
     echo "================================================="
@@ -93,27 +114,33 @@ enroll_custom_keys() {
     echo "    - Allow ONLY your signed kernels to boot"
     echo
     echo "  Type ENROLL to continue:"
+    echo "  Type Q to abort:"
     echo
 
     local confirm
     read -rp "> " confirm
+    [[ "$confirm" == "Q" || "$confirm" == "q" ]] \
+        && fatal "Secure Boot enrollment aborted by user."
     [[ "$confirm" == "ENROLL" ]] \
         || fatal "Secure Boot enrollment aborted."
 
     log "[*] Enrolling keys into firmware..."
-    arch-chroot "$MNT" sbctl enroll-keys --yes-this-might-brick-my-machine
+    arch-chroot "$MNT" sbctl enroll-keys --yes-this-might-brick-my-machine \
+        || fatal "sbctl enroll-keys failed."
 
     log "[*] Custom keys enrolled."
+
+    build_and_sign_uki
 }
 
 # ==============================================================================
-# MICROSOFT MODE — SIGN UKI ONLY
+# MICROSOFT MODE — REGISTER AND SIGN UKI ONLY
 # ==============================================================================
 
 sign_microsoft_mode() {
-    log "[*] Microsoft mode — building and signing UKI..."
-    arch-chroot "$MNT" mkinitcpio -P
-    log "[*] UKI built."
+    log "[*] Microsoft mode — registering and signing UKI..."
+    register_uki
+    build_and_sign_uki
     log "[!] NOTE: Firmware must trust the signing key — PK/KEK/DB not modified."
 }
 
@@ -143,7 +170,6 @@ case "$SB_MODE" in
         verify_setup_mode
         enroll_custom_keys
         verify_signatures
-        verify_secureboot_enabled
         ;;
     microsoft)
         sign_microsoft_mode

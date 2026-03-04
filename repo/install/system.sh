@@ -258,16 +258,8 @@ deploy_postboot_autostart() {
     arch-chroot "$MNT" chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/Documents"
 
     cat >> "$profile" <<'BASHEOF'
-
 # ARCH_POSTBOOT_START
 if [[ -f "$HOME/Documents/arch_secure_install.sh" ]]; then
-    echo "================================================="
-    echo "            Arch Secure Installer"
-    echo "================================================="
-    echo
-    echo "  Inspired by and grateful to:"
-    echo "    - JaKooLit      https://github.com/JaKooLit/Arch-Hyprland"
-    echo "    - Ataraxxia     https://github.com/Ataraxxia/secure-arch"
     echo
     echo "================================================="
     echo "   Post-Boot Setup Pending"
