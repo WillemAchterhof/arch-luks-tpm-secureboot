@@ -260,14 +260,13 @@ deploy_postboot_autostart() {
     cat >> "$profile" <<'BASHEOF'
 
 # ARCH_POSTBOOT_START
-
+if [[ -f "$HOME/Documents/arch_secure_install.sh" ]]; then
 log "=== Arch Secure Installer Engine Starting ==="
 log ""
 log "  Inspired by and grateful to:"
 log "    - JaKooLit (Arch-Hyprland)    https://github.com/JaKooLit/Arch-Hyprland"
 log "    - Ataraxxia (Secure Arch)     https://github.com/Ataraxxia/secure-arch"
 log ""
-if [[ -f "$HOME/Documents/arch_secure_install.sh" ]]; then
     echo
     echo "================================================="
     echo "   Post-Boot Setup Pending"
