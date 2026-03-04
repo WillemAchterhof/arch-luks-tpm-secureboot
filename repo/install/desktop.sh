@@ -29,7 +29,25 @@ deploy_config() {
 }
 
 # ==============================================================================
-# SHARED — AUDIO
+# LAYER 1 — WAYLAND BASE
+# Required by both KDE (wayland session) and Hyprland
+# ==============================================================================
+
+install_wayland_base() {
+    log "[*] Installing Wayland base..."
+    install_pkgs \
+        qt5-wayland \
+        qt6-wayland \
+        xdg-desktop-portal-gtk \
+        xdg-user-dirs \
+        xdg-utils
+
+    xdg-user-dirs-update
+    log "[*] Wayland base installed."
+}
+
+# ==============================================================================
+# LAYER 2 — AUDIO (pipewire stack)
 # ==============================================================================
 
 install_audio() {
@@ -39,14 +57,16 @@ install_audio() {
         pipewire-alsa \
         pipewire-pulse \
         pipewire-jack \
-        wireplumber
+        wireplumber \
+        pamixer \
+        pavucontrol
 
     systemctl --user enable pipewire pipewire-pulse wireplumber
     log "[*] Audio stack installed."
 }
 
 # ==============================================================================
-# SHARED — SHELL
+# LAYER 3 — SHELL
 # ==============================================================================
 
 install_shell() {
@@ -56,56 +76,101 @@ install_shell() {
         zsh-completions \
         zsh-autosuggestions
 
-    # Set zsh as default shell
     sudo chsh -s /usr/bin/zsh "$USERNAME"
     log "[*] zsh set as default shell."
 }
 
 # ==============================================================================
-# SHARED — FONTS
+# LAYER 4 — FONTS
+# Nerd fonts required for waybar/rofi icons
 # ==============================================================================
 
 install_fonts() {
     log "[*] Installing fonts..."
     install_pkgs \
+        ttf-jetbrains-mono-nerd \
         ttf-dejavu \
         ttf-liberation \
+        otf-font-awesome \
         noto-fonts \
         noto-fonts-cjk \
-        noto-fonts-emoji \
-        ttf-jetbrains-mono-nerd
+        noto-fonts-emoji
 
     log "[*] Fonts installed."
 }
 
 # ==============================================================================
-# SHARED — TOOLS
+# LAYER 5 — THEMING (GTK + Qt consistency)
+# ==============================================================================
+
+install_theming() {
+    log "[*] Installing theming tools..."
+    install_pkgs \
+        nwg-look \
+        qt5ct \
+        qt6ct \
+        papirus-icon-theme
+
+    log "[*] Theming tools installed."
+}
+
+# ==============================================================================
+# LAYER 6 — TERMINAL + TOOLS
 # ==============================================================================
 
 install_tools() {
-    log "[*] Installing common tools..."
+    log "[*] Installing terminal and tools..."
     install_pkgs \
         alacritty \
         neovim \
         btop \
         fastfetch \
-        git \
-        reflector \
         man-db \
-        xdg-user-dirs \
-        xdg-utils \
+        reflector \
+        git \
+        jq \
+        python-requests \
         unzip \
         p7zip \
         hunspell \
         hunspell-en_us \
         hunspell-nl
 
-    xdg-user-dirs-update
-    log "[*] Common tools installed."
+    log "[*] Tools installed."
 }
 
 # ==============================================================================
-# SHARED — EXTRA PACKAGES
+# LAYER 7 — FILE MANAGEMENT
+# ==============================================================================
+
+install_filemanager() {
+    log "[*] Installing file manager..."
+    install_pkgs \
+        thunar \
+        thunar-volman \
+        tumbler \
+        gvfs \
+        gvfs-mtp \
+        ffmpegthumbs
+
+    log "[*] File manager installed."
+}
+
+# ==============================================================================
+# LAYER 8 — NETWORK TOOLS
+# ==============================================================================
+
+install_network_tools() {
+    log "[*] Installing network tools..."
+    install_pkgs \
+        network-manager-applet \
+        networkmanager-dmenu-git
+
+    log "[*] Network tools installed."
+}
+
+# ==============================================================================
+# LAYER 9 — EXTRA PACKAGES (from profile)
 # ==============================================================================
 
 install_extra_packages() {
@@ -115,6 +180,30 @@ install_extra_packages() {
     # shellcheck disable=SC2086
     install_pkgs $EXTRA_PACKAGES
     log "[*] Extra packages installed."
+}
+
+# ==============================================================================
+# SHARED — ENVIRONMENT
+# ==============================================================================
+
+configure_environment() {
+    log "[*] Writing /etc/environment..."
+
+    cat > /etc/environment <<EOF
+EDITOR=nvim
+VISUAL=nvim
+TERMINAL=alacritty
+EOF
+
+    if [[ "${DESKTOP_ENV,,}" == "hyprland" ]]; then
+        cat >> /etc/environment <<'EOF'
+MOZ_ENABLE_WAYLAND=1
+QT_QPA_PLATFORM=wayland
+SDL_VIDEODRIVER=wayland
+EOF
+    fi
+
+    log "[*] Environment configured."
 }
 
 # ==============================================================================
@@ -135,28 +224,15 @@ deploy_alacritty_config() {
 }
 
 # ==============================================================================
-# SHARED — ENVIRONMENT
+# SHARED — POST-INSTALL GROUP ADDITIONS
 # ==============================================================================
 
-configure_environment() {
-    log "[*] Writing /etc/environment..."
-
-    cat > /etc/environment <<EOF
-EDITOR=nvim
-VISUAL=nvim
-TERMINAL=alacritty
-EOF
-
-    # Wayland vars — added for both KDE and Hyprland
-    if [[ "$DESKTOP_ENV" == "hyprland" ]]; then
-        cat >> /etc/environment <<'EOF'
-MOZ_ENABLE_WAYLAND=1
-QT_QPA_PLATFORM=wayland
-SDL_VIDEODRIVER=wayland
-EOF
+configure_user_groups() {
+    # libvirt — only if package is installed
+    if pacman -Q libvirt &>/dev/null; then
+        sudo usermod -aG libvirt "$USERNAME"
+        log "[*] Added $USERNAME to libvirt group."
     fi
-
-    log "[*] Environment configured."
 }
 
 # ==============================================================================
@@ -172,53 +248,56 @@ install_kde() {
         sddm \
         xdg-desktop-portal-kde
 
-    log "[*] Enabling SDDM..."
     sudo systemctl enable sddm
+    log "[*] SDDM enabled."
 
-    # Add libvirt group if package installed
-    if pacman -Q libvirt &>/dev/null; then
-        sudo usermod -aG libvirt "$USERNAME"
-        log "[*] Added $USERNAME to libvirt group."
-    fi
-
+    configure_user_groups
     log "[*] KDE installed."
 }
 
 # ==============================================================================
-# HYPRLAND
+# HYPRLAND — COMPOSITOR STACK
 # ==============================================================================
 
 install_hyprland() {
-    log "[*] Installing Hyprland..."
+    log "[*] Installing Hyprland compositor stack..."
 
+    # Core compositor
     install_pkgs \
         hyprland \
         hyprlock \
         hypridle \
         hyprpaper \
         xdg-desktop-portal-hyprland \
+        polkit-kde-agent
+
+    # Bar + launcher + notifications
+    install_pkgs \
         waybar \
         rofi-wayland \
         dunst \
-        polkit-kde-agent \
-        qt5-wayland \
-        qt6-wayland \
+        wlogout
+
+    # Screenshot + clipboard
+    install_pkgs \
         grim \
         slurp \
+        swappy \
         wl-clipboard \
+        cliphist
+
+    # Hardware controls
+    install_pkgs \
         brightnessctl \
         playerctl \
-        nwg-look \
-        sddm
+        wlsunset
 
-    log "[*] Enabling SDDM..."
+    # Display manager
+    install_pkgs sddm
     sudo systemctl enable sddm
+    log "[*] SDDM enabled."
 
-    # Add libvirt group if package installed
-    if pacman -Q libvirt &>/dev/null; then
-        sudo usermod -aG libvirt "$USERNAME"
-        log "[*] Added $USERNAME to libvirt group."
-    fi
+    configure_user_groups
 
     log "[*] Deploying Hyprland configs..."
     deploy_hyprland_configs
@@ -235,10 +314,12 @@ deploy_hyprland_configs() {
 
     # Hyprland
     [[ -f "$CONFIGS_DIR/hyprland/hyprland.conf" ]] \
-        && deploy_config "$CONFIGS_DIR/hyprland/hyprland.conf" "$hypr_cfg/hyprland.conf"
+        && deploy_config "$CONFIGS_DIR/hyprland/hyprland.conf" \
+                         "$hypr_cfg/hyprland.conf"
 
     [[ -f "$CONFIGS_DIR/hyprland/hyprlock.conf" ]] \
-        && deploy_config "$CONFIGS_DIR/hyprland/hyprlock.conf" "$hypr_cfg/hyprlock.conf"
+        && deploy_config "$CONFIGS_DIR/hyprland/hyprlock.conf" \
+                         "$hypr_cfg/hyprlock.conf"
 
     [[ -f "$CONFIGS_DIR/hyprland/themes/tokyonight.conf" ]] \
         && deploy_config "$CONFIGS_DIR/hyprland/themes/tokyonight.conf" \
@@ -246,17 +327,21 @@ deploy_hyprland_configs() {
 
     # Waybar
     [[ -f "$CONFIGS_DIR/waybar/config.jsonc" ]] \
-        && deploy_config "$CONFIGS_DIR/waybar/config.jsonc" "$waybar_cfg/config.jsonc"
+        && deploy_config "$CONFIGS_DIR/waybar/config.jsonc" \
+                         "$waybar_cfg/config.jsonc"
 
     [[ -f "$CONFIGS_DIR/waybar/style.css" ]] \
-        && deploy_config "$CONFIGS_DIR/waybar/style.css" "$waybar_cfg/style.css"
+        && deploy_config "$CONFIGS_DIR/waybar/style.css" \
+                         "$waybar_cfg/style.css"
 
     # Rofi
     [[ -f "$CONFIGS_DIR/rofi/config.rasi" ]] \
-        && deploy_config "$CONFIGS_DIR/rofi/config.rasi" "$rofi_cfg/config.rasi"
+        && deploy_config "$CONFIGS_DIR/rofi/config.rasi" \
+                         "$rofi_cfg/config.rasi"
 
     [[ -f "$CONFIGS_DIR/rofi/tokyonight.rasi" ]] \
-        && deploy_config "$CONFIGS_DIR/rofi/tokyonight.rasi" "$rofi_cfg/tokyonight.rasi"
+        && deploy_config "$CONFIGS_DIR/rofi/tokyonight.rasi" \
+                         "$rofi_cfg/tokyonight.rasi"
 
     # Fix ownership
     chown -R "$USERNAME:$USERNAME" \
@@ -273,21 +358,27 @@ deploy_hyprland_configs() {
 
 log "[*] Desktop install starting — environment: $DESKTOP_ENV"
 
-# Enable multilib in case it isn't already
+# Ensure multilib and fresh db
 sudo sed -i \
     -e 's/^#Color/Color/' \
     -e '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' \
     /etc/pacman.conf
 sudo pacman -Sy --noconfirm
 
+# Shared layers — installed for all desktop environments
+install_wayland_base
 install_audio
 install_shell
 install_fonts
+install_theming
 install_tools
+install_filemanager
+install_network_tools
 install_extra_packages
 configure_environment
 deploy_alacritty_config
 
+# Desktop-specific
 case "${DESKTOP_ENV,,}" in
     kde)
         install_kde
