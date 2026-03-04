@@ -261,12 +261,13 @@ deploy_postboot_autostart() {
 
 # ARCH_POSTBOOT_START
 if [[ -f "$HOME/Documents/arch_secure_install.sh" ]]; then
-log "=== Arch Secure Installer Engine Starting ==="
-log ""
-log "  Inspired by and grateful to:"
-log "    - JaKooLit (Arch-Hyprland)    https://github.com/JaKooLit/Arch-Hyprland"
-log "    - Ataraxxia (Secure Arch)     https://github.com/Ataraxxia/secure-arch"
-log ""
+    echo "================================================="
+    echo "            Arch Secure Installer"
+    echo "================================================="
+    echo
+    echo "  Inspired by and grateful to:"
+    echo "    - JaKooLit      https://github.com/JaKooLit/Arch-Hyprland"
+    echo "    - Ataraxxia     https://github.com/Ataraxxia/secure-arch"
     echo
     echo "================================================="
     echo "   Post-Boot Setup Pending"

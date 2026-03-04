@@ -108,6 +108,16 @@ render_profile_summary() {
 select_mode() {
     while true; do
         clear
+	echo "================================================="
+        echo "            Arch Secure Installer"
+        echo "================================================="
+        echo
+        echo "  Inspired by and grateful to:"
+        echo "    - JaKooLit      https://github.com/JaKooLit/Arch-Hyprland"
+        echo "    - Ataraxxia     https://github.com/Ataraxxia/secure-arch"
+        echo
+        echo "================================================="
+        echo
         echo "================================================="
         echo "            Arch Secure Installer"
         echo "================================================="
