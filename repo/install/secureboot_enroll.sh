@@ -26,10 +26,10 @@ preflight_checks() {
     mountpoint -q "$MNT" \
         || fatal "$MNT is not mounted."
 
-    arch-chroot "$MNT" bash -c 'command -v sbctl' >/dev/null 2>&1 \
+    [[ -x "$MNT/usr/bin/sbctl" ]] \
         || fatal "sbctl not installed in target system."
 
-    arch-chroot "$MNT" bash -c 'command -v mkinitcpio' >/dev/null 2>&1 \
+    [[ -x "$MNT/usr/bin/mkinitcpio" ]] \
         || fatal "mkinitcpio not installed in target system."
 
     # Verify UKI directory exists
@@ -46,11 +46,15 @@ preflight_checks() {
 verify_setup_mode() {
     log "[*] Checking firmware Setup Mode..."
 
-    local status
-    status="$(arch-chroot "$MNT" sbctl status 2>/dev/null || true)"
-    echo "$status"
+    local setup_mode_var="/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c"
 
-    if ! echo "$status" | grep -qiE "Setup Mode:\s*(enabled|true|yes)"; then
+    [[ -f "$setup_mode_var" ]] \
+        || fatal "Cannot read Setup Mode EFI variable — is system booted in UEFI mode?"
+
+    local val
+    val=$(od -An -t u1 "$setup_mode_var" | awk '{print $NF}')
+
+    if [[ "$val" != "1" ]]; then
         fatal "Firmware is NOT in Setup Mode.
 Enter UEFI firmware, clear Secure Boot keys, and rerun."
     fi
@@ -66,7 +70,7 @@ register_uki() {
     log "[*] Registering UKI with sbctl..."
 
     # Register the UKI path so sbctl sign-all knows what to sign
-    arch-chroot "$MNT" sbctl add-file "$UKI_PATH" \
+    arch-chroot "$MNT" /usr/bin/sbctl add-file "$UKI_PATH" \
         || fatal "Failed to register UKI with sbctl."
 
     log "[*] UKI registered: $UKI_PATH"
@@ -86,7 +90,7 @@ build_and_sign_uki() {
         || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
 
     log "[*] Signing UKI with sbctl..."
-    arch-chroot "$MNT" sbctl sign-all \
+    arch-chroot "$MNT" /usr/bin/sbctl sign-all \
         || fatal "sbctl sign-all failed."
 
     log "[*] UKI built and signed."
@@ -98,7 +102,7 @@ build_and_sign_uki() {
 
 enroll_custom_keys() {
     log "[*] Creating Secure Boot keys..."
-    arch-chroot "$MNT" sbctl create-keys \
+    arch-chroot "$MNT" /usr/bin/sbctl create-keys \
         || fatal "sbctl create-keys failed."
 
     register_uki
@@ -125,7 +129,7 @@ enroll_custom_keys() {
         || fatal "Secure Boot enrollment aborted."
 
     log "[*] Enrolling keys into firmware..."
-    arch-chroot "$MNT" sbctl enroll-keys --yes-this-might-brick-my-machine \
+    arch-chroot "$MNT" /usr/bin/sbctl enroll-keys --yes-this-might-brick-my-machine \
         || fatal "sbctl enroll-keys failed."
 
     log "[*] Custom keys enrolled."
@@ -150,11 +154,11 @@ sign_microsoft_mode() {
 
 verify_signatures() {
     log "[*] Verifying signed files..."
-    arch-chroot "$MNT" sbctl verify \
+    arch-chroot "$MNT" /usr/bin/sbctl verify \
         || fatal "Signature verification failed."
 
     log "[*] Secure Boot status:"
-    arch-chroot "$MNT" sbctl status
+    arch-chroot "$MNT" /usr/bin/sbctl status
 }
 
 # ==============================================================================
