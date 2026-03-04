@@ -258,7 +258,15 @@ deploy_postboot_autostart() {
     arch-chroot "$MNT" chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/Documents"
 
     cat >> "$profile" <<'BASHEOF'
+
 # ARCH_POSTBOOT_START
+
+log "=== Arch Secure Installer Engine Starting ==="
+log ""
+log "  Inspired by and grateful to:"
+log "    - JaKooLit (Arch-Hyprland)    https://github.com/JaKooLit/Arch-Hyprland"
+log "    - Ataraxxia (Secure Arch)     https://github.com/Ataraxxia/secure-arch"
+log ""
 if [[ -f "$HOME/Documents/arch_secure_install.sh" ]]; then
     echo
     echo "================================================="
