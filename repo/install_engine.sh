@@ -18,6 +18,11 @@ ACTIVE_PROFILE="$PROFILE_FOLDER/active.sh"
 [[ -f "$ACTIVE_PROFILE" ]] && source "$ACTIVE_PROFILE"
 
 log "=== Arch Secure Installer Engine Starting ==="
+log ""
+log "  Inspired by and grateful to:"
+log "    - JaKooLit (Arch-Hyprland)    https://github.com/JaKooLit/Arch-Hyprland"
+log "    - Ataraxxia (Secure Arch)     https://github.com/Ataraxxia/secure-arch"
+log ""
 
 
 # ==============================================================================
