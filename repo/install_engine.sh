@@ -276,12 +276,55 @@ run_installation() {
             echo "        Pre-Boot Installation Complete"
             echo "================================================="
             echo
-            echo "  You may now reboot into your new system."
+            echo "  !! SAVE YOUR LUKS RECOVERY KEY NOW !!"
             echo
-            echo "  After reboot, run:"
-            echo "      arch_secure_install.sh"
+            echo "  Key location: $LUKS_KEY_FILE"
             echo
-            exit 0
+            if [[ -f "$LUKS_KEY_FILE" ]]; then
+                echo "  Key:"
+                echo
+                cat "$LUKS_KEY_FILE"
+                echo
+            else
+                echo "  [!] Key file not found at: $LUKS_KEY_FILE"
+                echo
+            fi
+            echo "================================================="
+            echo
+            echo "  Store this key somewhere safe."
+            echo "  Without it you cannot recover your data"
+            echo "  if TPM enrollment fails."
+            echo
+
+            local confirm
+            while true; do
+                read -rp "  Type YES to confirm you saved the key: " confirm
+                [[ "$confirm" == "YES" ]] && break
+                echo "  [!] Please type YES to continue."
+            done
+
+            echo
+
+            if [[ "${SB_MODE:-}" == "custom" ]]; then
+                echo "  Custom Secure Boot keys enrolled."
+                echo "  Rebooting to UEFI firmware to enable Secure Boot in:"
+                echo
+                for i in 5 4 3 2 1; do
+                    printf "      %s ..\n" "$i"
+                    sleep 1
+                done
+                echo
+                systemctl reboot --firmware-setup
+            else
+                echo "  Rebooting into your new system in:"
+                echo
+                for i in 5 4 3 2 1; do
+                    printf "      %s ..\n" "$i"
+                    sleep 1
+                done
+                echo
+                reboot
+            fi
             ;;
 
         preboot_done)
@@ -301,6 +344,20 @@ run_installation() {
             ;;
 
         done)
+            # Remove postboot autostart from .bash_profile
+            local profile="/home/${USERNAME:-}/.bash_profile"
+            if [[ -n "${USERNAME:-}" && -f "$profile" ]]; then
+                sed -i '/# ARCH_POSTBOOT_START/,/# ARCH_POSTBOOT_END/d' "$profile"
+                log "[*] Postboot autostart removed from .bash_profile"
+            fi
+
+            # Remove installer script from Documents
+            local installer="/home/${USERNAME:-}/Documents/arch_secure_install.sh"
+            if [[ -f "$installer" ]]; then
+                rm -f "$installer"
+                log "[*] arch_secure_install.sh removed from ~/Documents"
+            fi
+
             clear
             echo "================================================="
             echo "          Installation Fully Complete"

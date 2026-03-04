@@ -14,7 +14,7 @@ IFS=$'\n\t'
 
 CRYPT_NAME="cryptroot"
 MNT="/mnt"
-ROOT_FS="ext4"
+ROOT_FS="${ROOT_FS:-ext4}"
 
 # ==============================================================================
 # CLEANUP
@@ -75,7 +75,6 @@ select_wipe_mode() {
 }
 
 select_efi_size() {
-    # If EFI_SIZE is set by profile, use it; otherwise, ask interactively
     if [[ -n "${EFI_SIZE:-}" ]]; then
         log "[*] EFI size from profile: $EFI_SIZE"
         return
@@ -118,6 +117,31 @@ confirm_disk_destruction() {
 }
 
 # ==============================================================================
+# PRE-FLIGHT: CLOSE STALE LUKS + FLUSH KERNEL
+# ==============================================================================
+
+preflight_disk() {
+    # Close stale LUKS mapping from previous failed run
+    if cryptsetup status "$CRYPT_NAME" >/dev/null 2>&1; then
+        log "[*] Closing stale LUKS mapping: $CRYPT_NAME"
+        cryptsetup close "$CRYPT_NAME" \
+            || fatal "Failed to close stale LUKS mapping — reboot and retry."
+    fi
+
+    # Unmount stale mounts under /mnt
+    if mountpoint -q "$MNT"; then
+        log "[*] Unmounting stale mounts under $MNT"
+        umount -R "$MNT" || fatal "Failed to unmount $MNT — reboot and retry."
+    fi
+
+    # Flush kernel partition table cache
+    partprobe "$TARGET_DISK" 2>/dev/null || true
+    udevadm settle
+
+    log "[*] Pre-flight disk checks complete."
+}
+
+# ==============================================================================
 # WIPE
 # ==============================================================================
 
@@ -131,13 +155,15 @@ wipe_disk() {
             ;;
         zeros)
             log "[*] Overwriting with zeros — this may take a while..."
-            dd if=/dev/zero of="$TARGET_DISK" bs=4M status=progress conv=fsync || true
+            dd if=/dev/zero of="$TARGET_DISK" bs=4M status=progress conv=fsync \
+                || log "[!] dd failed — continuing with wipefs+sgdisk"
             wipefs -af "$TARGET_DISK"
             sgdisk --zap-all "$TARGET_DISK"
             ;;
         random)
             log "[*] Overwriting with random data — this will take a long time..."
-            dd if=/dev/urandom of="$TARGET_DISK" bs=4M status=progress conv=fsync || true
+            dd if=/dev/urandom of="$TARGET_DISK" bs=4M status=progress conv=fsync \
+                || log "[!] dd failed — continuing with wipefs+sgdisk"
             wipefs -af "$TARGET_DISK"
             sgdisk --zap-all "$TARGET_DISK"
             ;;
@@ -227,8 +253,16 @@ create_filesystems() {
     log "[*] Formatting EFI: $efi_part"
     mkfs.fat -F32 -n ESP "$efi_part"
 
-    log "[*] Formatting root (ext4)"
-    mkfs.ext4 -L archroot "/dev/mapper/$CRYPT_NAME"
+    case "$ROOT_FS" in
+        btrfs)
+            log "[*] Formatting root (btrfs)"
+            mkfs.btrfs -L archroot "/dev/mapper/$CRYPT_NAME"
+            ;;
+        ext4|*)
+            log "[*] Formatting root (ext4)"
+            mkfs.ext4 -L archroot "/dev/mapper/$CRYPT_NAME"
+            ;;
+    esac
 
     log "[*] Filesystems created."
 }
@@ -249,29 +283,6 @@ mount_filesystems() {
     mount "$efi_part" "$MNT/boot"
 
     log "[*] Filesystems mounted."
-}
-
-# ==============================================================================
-# SHOW RECOVERY KEY
-# ==============================================================================
-
-show_recovery_key() {
-    clear
-    echo "================================================="
-    echo "   LUKS Recovery Key — SAVE THIS NOW"
-    echo "================================================="
-    echo
-    echo "  Location: $LUKS_KEY_FILE"
-    echo
-    echo "  Key:"
-    echo
-    cat "$LUKS_KEY_FILE"
-    echo
-    echo "================================================="
-    echo
-
-    read -rp "  Type YES after saving the key: " confirm
-    [[ "$confirm" == "YES" ]] || fatal "Recovery key not confirmed."
 }
 
 # ==============================================================================
@@ -299,6 +310,7 @@ export_disk_info() {
 # MAIN
 # ==============================================================================
 
+preflight_disk
 confirm_disk_destruction
 select_wipe_mode
 select_efi_size
@@ -308,7 +320,6 @@ create_partitions
 setup_luks
 create_filesystems
 mount_filesystems
-show_recovery_key
 export_disk_info
 
 log "[*] disk_setup.sh complete."

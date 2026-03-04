@@ -9,13 +9,11 @@ IFS=$'\n\t'
 
 : "${PACMAN_PARALLEL_CHROOT:?PACMAN_PARALLEL_CHROOT not set}"
 : "${TIMEZONE:?TIMEZONE not set}"
-: "${HOSTNAME:?HOSTNAME not set}"
+: "${INSTALL_HOSTNAME:?INSTALL_HOSTNAME not set}"
 : "${USERNAME:?USERNAME not set}"
-: "${USER_SHELL:?USER_SHELL not set}"
 : "${CONFIGS_DIR:?CONFIGS_DIR not set}"
 
 MNT="/mnt"
-SHELL_PKG="$(basename "$USER_SHELL")"
 
 # ==============================================================================
 # CPU MICROCODE
@@ -43,8 +41,6 @@ install_base() {
     ucode="$(detect_ucode)"
 
     log "[*] CPU microcode: ${ucode:-none}"
-    log "[*] Shell package: $SHELL_PKG"
-
     log "[*] Installing base system via pacstrap..."
     pacstrap -K "$MNT" \
         base base-devel \
@@ -63,10 +59,7 @@ install_base() {
         reflector \
         libpwquality \
         polkit \
-        tar gzip unzip p7zip \
-        plymouth \
-        "$SHELL_PKG" \
-        ${EXTRA_PACKAGES:-}
+        tar gzip unzip p7zip
 
     log "[*] Base system installed."
 }
@@ -132,34 +125,17 @@ configure_locale() {
 # ==============================================================================
 
 configure_hostname() {
-    log "[*] Setting hostname: $HOSTNAME"
+    log "[*] Setting hostname: $INSTALL_HOSTNAME"
 
-    printf '%s\n' "$HOSTNAME" > "$MNT/etc/hostname"
+    printf '%s\n' "$INSTALL_HOSTNAME" > "$MNT/etc/hostname"
 
     cat > "$MNT/etc/hosts" <<EOF
 127.0.0.1   localhost
 ::1         localhost
-127.0.1.1   $HOSTNAME.localdomain $HOSTNAME
+127.0.1.1   $INSTALL_HOSTNAME.localdomain $INSTALL_HOSTNAME
 EOF
 
     log "[*] Hostname configured."
-}
-
-# ==============================================================================
-# ENVIRONMENT
-# ==============================================================================
-
-configure_environment() {
-    log "[*] Writing /etc/environment..."
-
-    cat > "$MNT/etc/environment" <<'EOF'
-EDITOR=nvim
-VISUAL=nvim
-#TERMINAL=alacritty
-#MOZ_ENABLE_WAYLAND=1
-#QT_QPA_PLATFORM=wayland
-#SDL_VIDEODRIVER=wayland
-EOF
 }
 
 # ==============================================================================
@@ -169,20 +145,10 @@ EOF
 configure_user() {
     log "[*] Creating user: $USERNAME"
 
-    local shell_path
-    shell_path=$(arch-chroot "$MNT" command -v "$SHELL_PKG" 2>/dev/null \
-        || echo "/bin/bash")
-
-    # wheel always required, USER_GROUPS adds extras
-    local groups="wheel"
-    if [[ -n "${USER_GROUPS:-}" ]]; then
-        groups="wheel,$USER_GROUPS"
-    fi
-
     arch-chroot "$MNT" useradd \
         -m \
-        -G "$groups" \
-        -s "$shell_path" \
+        -G wheel \
+        -s /bin/bash \
         "$USERNAME"
 
     echo
@@ -253,6 +219,69 @@ EOF
 }
 
 # ==============================================================================
+# WIFI CONFIG
+# ==============================================================================
+
+copy_wifi_config() {
+    local wifi_src="$USB_ROOT/wifi.conf"
+
+    [[ -f "$wifi_src" ]] || return 0
+
+    log "[*] WiFi config found — copying to installed system..."
+
+    mkdir -p "$MNT/etc/NetworkManager/system-connections"
+    cp "$wifi_src" "$MNT/etc/NetworkManager/system-connections/wifi.conf"
+    chmod 600 "$MNT/etc/NetworkManager/system-connections/wifi.conf"
+
+    log "[*] WiFi config deployed."
+}
+
+# ==============================================================================
+# POSTBOOT AUTOSTART
+# ==============================================================================
+
+deploy_postboot_autostart() {
+    log "[*] Deploying post-boot autostart..."
+
+    local user_home="$MNT/home/$USERNAME"
+    local docs_dir="$user_home/Documents"
+    local profile="$user_home/.bash_profile"
+    local script_src="$USB_ROOT/arch_secure_install.sh"
+
+    mkdir -p "$docs_dir"
+
+    [[ -f "$script_src" ]] \
+        || fatal "arch_secure_install.sh not found at: $script_src"
+    cp "$script_src" "$docs_dir/arch_secure_install.sh"
+    chmod 750 "$docs_dir/arch_secure_install.sh"
+
+    arch-chroot "$MNT" chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/Documents"
+
+    cat >> "$profile" <<\'BASHEOF\'
+# ARCH_POSTBOOT_START
+if [[ -f "$HOME/Documents/arch_secure_install.sh" ]]; then
+    echo
+    echo "================================================="
+    echo "   Post-Boot Setup Pending"
+    echo "================================================="
+    echo
+    echo "  Enter your sudo password to continue installation."
+    echo "  Press Ctrl+C to abort."
+    echo
+    echo "  To run manually later:"
+    echo "      sudo bash ~/Documents/arch_secure_install.sh"
+    echo
+    sudo bash "$HOME/Documents/arch_secure_install.sh"
+fi
+# ARCH_POSTBOOT_END
+\'BASHEOF\'
+
+    arch-chroot "$MNT" chown "$USERNAME:$USERNAME" "/home/$USERNAME/.bash_profile"
+
+    log "[*] Post-boot autostart deployed."
+}
+
+# ==============================================================================
 # SERVICES
 # ==============================================================================
 
@@ -303,9 +332,10 @@ configure_pacman
 configure_timezone
 configure_locale
 configure_hostname
-configure_environment
 configure_user
 deploy_configs
+copy_wifi_config
 configure_services
+deploy_postboot_autostart
 
 log "[*] system.sh complete."

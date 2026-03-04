@@ -71,6 +71,25 @@ setup_mirrors() {
 }
 
 # ==============================================================================
+# PACMAN LIVE ISO CONFIG
+# ==============================================================================
+
+setup_pacman_config() {
+    log "[*] Configuring pacman on live ISO..."
+
+    sed -i \
+        -e 's/^#Color/Color/' \
+        -e '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' \
+        /etc/pacman.conf
+
+    log "[*] Syncing package databases..."
+    pacman -Sy --noconfirm \
+        || fatal "pacman -Sy failed — check mirrors."
+
+    log "[*] pacman configured and databases synced."
+}
+
+# ==============================================================================
 # PACMAN PARALLEL DOWNLOADS
 # ==============================================================================
 
@@ -101,6 +120,7 @@ setup_pacman_downloads() {
 setup_ntp
 setup_timezone
 setup_mirrors
+setup_pacman_config
 setup_pacman_downloads
 
 log "[*] pacman_mirrors.sh complete."
