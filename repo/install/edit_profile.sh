@@ -24,7 +24,7 @@ render_editor() {
     echo "            Profile Editor"
     echo "================================================="
     echo
-    printf "  [1]  Hostname         : %s\n" "${HOSTNAME:-<unset>}"
+    printf "  [1]  Hostname         : %s\n" "${INSTALL_HOSTNAME:-<unset>}"
     printf "  [2]  Username         : %s\n" "${USERNAME:-<unset>}"
     printf "  [3]  Shell            : %s\n" "${USER_SHELL:-<unset>}"
     printf "  [4]  Timezone         : %s\n" "${TIMEZONE:-<unset>}"
@@ -54,8 +54,8 @@ edit_field() {
 
     case "$field" in
         1)
-            read -rp "  Hostname [$HOSTNAME]: " val
-            [[ -n "${val:-}" ]] && HOSTNAME="$val"
+            read -rp "  Hostname [$INSTALL_HOSTNAME]: " val
+            [[ -n "${val:-}" ]] && INSTALL_HOSTNAME="$val"
             ;;
         2)
             read -rp "  Username [$USERNAME]: " val
@@ -143,11 +143,11 @@ edit_field() {
             fi
             ;;
         12)
-            echo "  Options: hyprland none"
+            echo "  Options: kde, hyprland, jakoolit, none"
             read -rp "  Desktop [$DESKTOP_ENV]: " val
             if [[ -n "${val:-}" ]]; then
                 case "$val" in
-                    hyprland|none) DESKTOP_ENV="$val" ;;
+                    kde|hyprland|jakoolit|none) DESKTOP_ENV="$val" ;;
                     *) echo "  [!] Invalid: $val"; sleep 1 ;;
                 esac
             fi
@@ -169,7 +169,10 @@ edit_field() {
 # ------------------------------------------------------------------------------
 
 export_profile() {
-    export HOSTNAME
+    # Normalize EXTRA_PACKAGES to single space-separated line
+    EXTRA_PACKAGES=$(echo "$EXTRA_PACKAGES" | tr -s '[:space:]' ' ' | sed 's/^ //;s/ $//')
+
+    export INSTALL_HOSTNAME
     export USERNAME
     export USER_SHELL
     export TIMEZONE

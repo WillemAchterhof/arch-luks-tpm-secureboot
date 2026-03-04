@@ -387,6 +387,33 @@ deploy_hyprland_configs() {
 }
 
 # ==============================================================================
+# JAKOOLIT — Arch-Hyprland Installer
+# ==============================================================================
+
+install_jakoolit() {
+    log "[*] Launching JaKooLit Arch-Hyprland installer..."
+    log ""
+    log "  Thank you JaKooLit — https://github.com/JaKooLit/Arch-Hyprland"
+    log ""
+    log "  Note: JaKooLit installer is interactive — please follow the prompts."
+    log "  Any overlapping packages will be safely reinstalled."
+    log ""
+
+    sudo pacman -S --noconfirm --needed git
+
+    local build_dir
+    build_dir="$(mktemp -d /tmp/jakoolit-XXXXXX)"
+
+    git clone --depth 1 https://github.com/JaKooLit/Arch-Hyprland.git         "$build_dir" || fatal "Failed to clone JaKooLit Arch-Hyprland installer."
+
+    cd "$build_dir"
+    bash install.sh
+
+    rm -rf "$build_dir"
+    log "[*] JaKooLit installer complete."
+}
+
+# ==============================================================================
 # CLEANUP
 # ==============================================================================
 
@@ -410,6 +437,10 @@ cleanup() {
 # ==============================================================================
 
 log "[*] Desktop install starting — environment: $DESKTOP_ENV"
+log ""
+log "  Hyprland setup inspired by and grateful to:"
+log "    - JaKooLit (Arch-Hyprland)    https://github.com/JaKooLit/Arch-Hyprland"
+log ""
 
 # Ensure multilib and fresh db
 sudo sed -i \
@@ -440,8 +471,11 @@ case "${DESKTOP_ENV,,}" in
     hyprland)
         install_hyprland
         ;;
+    jakoolit)
+        install_jakoolit
+        ;;
     *)
-        fatal "Unknown DESKTOP_ENV: $DESKTOP_ENV — supported: kde, hyprland"
+        fatal "Unknown DESKTOP_ENV: $DESKTOP_ENV — supported: kde, hyprland, jakoolit"
         ;;
 esac
 
