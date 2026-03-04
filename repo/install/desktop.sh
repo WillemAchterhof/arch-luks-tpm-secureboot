@@ -22,6 +22,38 @@ install_pkgs() {
     sudo pacman -S --noconfirm --needed "$@"
 }
 
+install_aur_pkgs() {
+    yay -S --noconfirm --needed "$@"
+}
+
+# ==============================================================================
+# YAY — AUR HELPER
+# ==============================================================================
+
+install_yay() {
+    if command -v yay &>/dev/null; then
+        log "[*] yay already installed — skipping."
+        return 0
+    fi
+
+    log "[*] Installing yay AUR helper..."
+
+    # base-devel required to build AUR packages
+    sudo pacman -S --noconfirm --needed base-devel
+
+    local build_dir
+    build_dir="$(mktemp -d /tmp/yay-build-XXXXXX)"
+
+    git clone https://aur.archlinux.org/yay.git "$build_dir/yay" \
+        || fatal "Failed to clone yay from AUR."
+
+    (cd "$build_dir/yay" && makepkg -si --noconfirm) \
+        || fatal "Failed to build yay."
+
+    rm -rf "$build_dir"
+    log "[*] yay installed and build directory cleaned up."
+}
+
 deploy_config() {
     local src="$1" dst="$2"
     mkdir -p "$(dirname "$dst")"
@@ -163,7 +195,9 @@ install_filemanager() {
 install_network_tools() {
     log "[*] Installing network tools..."
     install_pkgs \
-        network-manager-applet \
+        network-manager-applet
+
+    install_aur_pkgs \
         networkmanager-dmenu-git
 
     log "[*] Network tools installed."
@@ -353,6 +387,25 @@ deploy_hyprland_configs() {
 }
 
 # ==============================================================================
+# CLEANUP
+# ==============================================================================
+
+cleanup() {
+    log "[*] Running post-install cleanup..."
+
+    # Remove any leftover yay build dirs in /tmp
+    rm -rf /tmp/yay-build-* 2>/dev/null || true
+
+    # Remove yay package cache
+    yay -Sc --noconfirm 2>/dev/null || true
+
+    # Remove pacman package cache
+    sudo pacman -Sc --noconfirm
+
+    log "[*] Cleanup complete."
+}
+
+# ==============================================================================
 # MAIN
 # ==============================================================================
 
@@ -366,6 +419,7 @@ sudo sed -i \
 sudo pacman -Sy --noconfirm
 
 # Shared layers — installed for all desktop environments
+install_yay
 install_wayland_base
 install_audio
 install_shell
@@ -390,5 +444,7 @@ case "${DESKTOP_ENV,,}" in
         fatal "Unknown DESKTOP_ENV: $DESKTOP_ENV — supported: kde, hyprland"
         ;;
 esac
+
+cleanup
 
 log "[*] desktop.sh complete — reboot to start $DESKTOP_ENV."
