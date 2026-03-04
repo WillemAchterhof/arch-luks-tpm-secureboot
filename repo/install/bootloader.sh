@@ -1,4 +1,4 @@
-#!/usr/bin/env bas#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 IFS=$'\n\t'
 
@@ -19,8 +19,13 @@ MNT="/mnt"
 # ==============================================================================
 
 get_efi_partnum() {
-    lsblk -no PARTNUM "$EFI_PART" \
-        || fatal "Cannot detect EFI partition number from: $EFI_PART"
+    # Strip partition number from device path
+    # /dev/nvme0n1p1 -> 1
+    # /dev/sda1      -> 1
+    local partnum
+    partnum="${EFI_PART##*[^0-9]}"
+    [[ -n "$partnum" ]] || fatal "Cannot detect EFI partition number from: $EFI_PART"
+    echo "$partnum"
 }
 
 # ==============================================================================
