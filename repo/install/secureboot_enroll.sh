@@ -61,14 +61,6 @@ Enter UEFI firmware, clear Secure Boot keys, and rerun."
 # ==============================================================================
 
 enroll_custom_keys() {
-    log "[*] Creating Secure Boot keys..."
-    arch-chroot /mnt sbctl create-keys || fatal "sbctl create-keys failed."
-
-    log "[*] Building and signing UKI..."
-    arch-chroot "$MNT" mkinitcpio -P || fatal "mkinitcpio failed."
-
-    [[ -f "$MNT$UKI_PATH" ]] || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
-
     clear
     echo "================================================="
     echo "   WARNING — SECURE BOOT KEY ENROLLMENT"
@@ -82,8 +74,11 @@ enroll_custom_keys() {
     echo "  Type ENROLL to continue:"
     echo "  Type Q to abort:"
     echo
+    log "[*] Creating Secure Boot keys..."
 
-    local confirm
+    arch-chroot /mnt sbctl create-keys || fatal "sbctl create-keys failed."
+
+        local confirm
     read -rp "> " confirm
     [[ "$confirm" == "Q" || "$confirm" == "q" ]] \
         && fatal "Secure Boot enrollment aborted by user."
@@ -93,6 +88,11 @@ enroll_custom_keys() {
     log "[*] Enrolling keys into firmware..."
     arch-chroot "$MNT" sbctl enroll-keys --yes-this-might-brick-my-machine \
         || fatal "sbctl enroll-keys failed."
+
+    log "[*] Building and signing UKI..."
+    arch-chroot "$MNT" mkinitcpio -P || fatal "mkinitcpio failed."
+
+    [[ -f "$MNT$UKI_PATH" ]] || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
 
     log "[*] Custom keys enrolled."
 }
