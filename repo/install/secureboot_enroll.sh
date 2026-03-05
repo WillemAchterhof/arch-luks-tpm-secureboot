@@ -32,7 +32,6 @@ preflight_checks() {
     [[ -x "$MNT/usr/bin/mkinitcpio" ]] \
         || fatal "mkinitcpio not installed in target system."
 
-    # Verify UKI directory exists
     [[ -d "$MNT/boot/EFI/Linux" ]] \
         || fatal "UKI directory missing: $MNT/boot/EFI/Linux — run bootloader.sh first."
 
@@ -49,7 +48,7 @@ verify_setup_mode() {
     local setup_mode_var="/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c"
 
     [[ -f "$setup_mode_var" ]] \
-        || fatal "Cannot read Setup Mode EFI variable — is system booted in UEFI mode?"
+        || fatal "Cannot read Setup Mode EFI variable."
 
     local val
     val=$(od -An -t u1 "$setup_mode_var" | awk '{print $NF}')
@@ -63,46 +62,20 @@ Enter UEFI firmware, clear Secure Boot keys, and rerun."
 }
 
 # ==============================================================================
-# REGISTER UKI WITH SBCTL
-# ==============================================================================
-
-register_uki() {
-    log "[*] Registering UKI with sbctl..."
-
-    arch-chroot "$MNT" /usr/bin/sbctl sign --save "$UKI_PATH" \
-        || fatal "Failed to register UKI with sbctl."
-
-    log "[*] UKI registered: $UKI_PATH"
-}
-
-# ==============================================================================
-# BUILD AND SIGN UKI
-# ==============================================================================
-
-build_and_sign_uki() {
-    log "[*] Building UKI with mkinitcpio..."
-    arch-chroot "$MNT" mkinitcpio -P \
-        || fatal "mkinitcpio failed."
-
-    # Verify UKI was actually created
-    [[ -f "$MNT$UKI_PATH" ]] \
-        || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
-
-    log "[*] Signing UKI with sbctl..."
-    arch-chroot "$MNT" /usr/bin/sbctl sign-all \
-        || fatal "sbctl sign-all failed."
-
-    log "[*] UKI built and signed."
-}
-
-# ==============================================================================
-# CUSTOM KEYS — CREATE AND ENROLL
+# CUSTOM KEYS — CREATE, BUILD, ENROLL
 # ==============================================================================
 
 enroll_custom_keys() {
     log "[*] Creating Secure Boot keys..."
     arch-chroot "$MNT" /usr/bin/sbctl create-keys \
         || fatal "sbctl create-keys failed."
+
+    log "[*] Building and signing UKI..."
+    arch-chroot "$MNT" mkinitcpio -P \
+        || fatal "mkinitcpio failed."
+
+    [[ -f "$MNT$UKI_PATH" ]] \
+        || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
 
     clear
     echo "================================================="
@@ -130,19 +103,22 @@ enroll_custom_keys() {
         || fatal "sbctl enroll-keys failed."
 
     log "[*] Custom keys enrolled."
-
-    register_uki
-    build_and_sign_uki
 }
 
 # ==============================================================================
-# MICROSOFT MODE — REGISTER AND SIGN UKI ONLY
+# MICROSOFT MODE — BUILD AND SIGN UKI ONLY
 # ==============================================================================
 
 sign_microsoft_mode() {
-    log "[*] Microsoft mode — registering and signing UKI..."
-    register_uki
-    build_and_sign_uki
+    log "[*] Microsoft mode — building and signing UKI..."
+
+    arch-chroot "$MNT" mkinitcpio -P \
+        || fatal "mkinitcpio failed."
+
+    [[ -f "$MNT$UKI_PATH" ]] \
+        || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
+
+    log "[*] UKI built."
     log "[!] NOTE: Firmware must trust the signing key — PK/KEK/DB not modified."
 }
 
