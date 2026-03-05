@@ -19,9 +19,6 @@ MNT="/mnt"
 # ==============================================================================
 
 get_efi_partnum() {
-    # Strip partition number from device path
-    # /dev/nvme0n1p1 -> 1
-    # /dev/sda1      -> 1
     local partnum
     partnum="${EFI_PART##*[^0-9]}"
     [[ -n "$partnum" ]] || fatal "Cannot detect EFI partition number from: $EFI_PART"
@@ -80,7 +77,7 @@ configure_uki_preset() {
 
     mkdir -p "$MNT/boot/EFI/Linux"
 
-cat > /mnt/etc/mkinitcpio.d/linux.preset << 'EOF'
+    cat > "$MNT/etc/mkinitcpio.d/linux.preset" <<'EOF'
 ALL_config="/etc/mkinitcpio.conf"
 ALL_kver="/boot/vmlinuz-linux"
 
@@ -89,6 +86,8 @@ PRESETS=('default')
 default_uki="/boot/EFI/Linux/arch-linux.efi"
 default_options="--splash /usr/share/systemd/bootctl/splash-arch.bmp"
 EOF
+
+    log "[*] UKI preset configured."
 }
 
 # ==============================================================================
@@ -96,9 +95,17 @@ EOF
 # ==============================================================================
 
 build_uki() {
+    log "[*] Installing systemd-ukify..."
+    arch-chroot "$MNT" pacman -S --noconfirm --needed systemd-ukify
+
     log "[*] Building UKI with mkinitcpio..."
-    arch-chroot "$MNT" mkinitcpio -P
-    log "[*] UKI built."
+    arch-chroot "$MNT" mkinitcpio -p linux \
+        || fatal "mkinitcpio failed."
+
+    [[ -f "$MNT/boot/EFI/Linux/arch-linux.efi" ]] \
+        || fatal "UKI not found after mkinitcpio — check preset and ukify."
+
+    log "[*] UKI built: /boot/EFI/Linux/arch-linux.efi"
 }
 
 # ==============================================================================
@@ -113,12 +120,14 @@ configure_efibootmgr() {
 
     # Clear all existing boot entries
     log "[*] Clearing existing EFI boot entries..."
-    efibootmgr | awk '/Boot[0-9A-F]{4}\*?/ {print $1}' \
-        | grep -oP '[0-9A-F]{4}' \
-        | while read -r entry; do
-            log "    Removing entry: $entry"
-            efibootmgr -b "$entry" -B
-        done
+    local entries
+    entries=$(efibootmgr | awk '/Boot[0-9A-F]{4}/ {print $1}' | grep -oP '[0-9A-F]{4}')
+
+    while IFS= read -r entry; do
+        [[ -n "$entry" ]] || continue
+        log "    Removing entry: $entry"
+        efibootmgr -b "$entry" -B
+    done <<< "$entries"
 
     # Create Arch Linux entry
     log "[*] Creating Arch Linux boot entry..."
@@ -150,6 +159,7 @@ configure_efibootmgr() {
 configure_mkinitcpio
 configure_cmdline
 configure_uki_preset
+build_uki
 configure_efibootmgr
 
 log "[*] bootloader.sh complete."
