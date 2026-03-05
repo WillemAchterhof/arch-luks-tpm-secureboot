@@ -20,20 +20,15 @@ MNT="/mnt"
 preflight_checks() {
     log "[*] Running Secure Boot pre-flight checks..."
 
-    [[ -d /sys/firmware/efi ]] \
-        || fatal "System not booted in UEFI mode."
+    [[ -d /sys/firmware/efi ]] || fatal "System not booted in UEFI mode."
 
-    mountpoint -q "$MNT" \
-        || fatal "$MNT is not mounted."
+    mountpoint -q "$MNT" || fatal "$MNT is not mounted."
 
-    [[ -x "$MNT/usr/bin/sbctl" ]] \
-        || fatal "sbctl not installed in target system."
+    [[ -x "$MNT/usr/bin/sbctl" ]] || fatal "sbctl not installed in target system."
 
-    [[ -x "$MNT/usr/bin/mkinitcpio" ]] \
-        || fatal "mkinitcpio not installed in target system."
+    [[ -x "$MNT/usr/bin/mkinitcpio" ]] || fatal "mkinitcpio not installed in target system."
 
-    [[ -d "$MNT/boot/EFI/Linux" ]] \
-        || fatal "UKI directory missing: $MNT/boot/EFI/Linux — run bootloader.sh first."
+    [[ -d "$MNT/boot/EFI/Linux" ]] || fatal "UKI directory missing: $MNT/boot/EFI/Linux — run bootloader.sh first."
 
     log "[*] Pre-flight checks OK."
 }
@@ -67,15 +62,12 @@ Enter UEFI firmware, clear Secure Boot keys, and rerun."
 
 enroll_custom_keys() {
     log "[*] Creating Secure Boot keys..."
-    arch-chroot "$MNT" sbctl create-keys \
-        || fatal "sbctl create-keys failed."
+    arch-chroot /mnt sbctl create-keys || fatal "sbctl create-keys failed."
 
     log "[*] Building and signing UKI..."
-    arch-chroot "$MNT" mkinitcpio -P \
-        || fatal "mkinitcpio failed."
+    arch-chroot "$MNT" mkinitcpio -P || fatal "mkinitcpio failed."
 
-    [[ -f "$MNT$UKI_PATH" ]] \
-        || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
+    [[ -f "$MNT$UKI_PATH" ]] || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
 
     clear
     echo "================================================="
@@ -112,11 +104,9 @@ enroll_custom_keys() {
 sign_microsoft_mode() {
     log "[*] Microsoft mode — building and signing UKI..."
 
-    arch-chroot "$MNT" mkinitcpio -P \
-        || fatal "mkinitcpio failed."
+    arch-chroot "$MNT" mkinitcpio -P || fatal "mkinitcpio failed."
 
-    [[ -f "$MNT$UKI_PATH" ]] \
-        || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
+    [[ -f "$MNT$UKI_PATH" ]] || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
 
     log "[*] UKI built."
     log "[!] NOTE: Firmware must trust the signing key — PK/KEK/DB not modified."
