@@ -20,15 +20,20 @@ UKI_PATH="/boot/EFI/Linux/arch-linux.efi"
 preflight_checks() {
     log "[*] Running Secure Boot pre-flight checks..."
 
-    [[ -d /sys/firmware/efi ]] || fatal "System not booted in UEFI mode."
+    [[ -d /sys/firmware/efi ]] \
+        || fatal "System not booted in UEFI mode."
 
-    mountpoint -q "$MNT" || fatal "$MNT is not mounted."
+    mountpoint -q "$MNT" \
+        || fatal "$MNT is not mounted."
 
-    [[ -x "$MNT/usr/bin/sbctl" ]] || fatal "sbctl not installed in target system."
+    [[ -x "$MNT/usr/bin/sbctl" ]] \
+        || fatal "sbctl not installed in target system."
 
-    [[ -x "$MNT/usr/bin/mkinitcpio" ]] || fatal "mkinitcpio not installed in target system."
+    [[ -x "$MNT/usr/bin/mkinitcpio" ]] \
+        || fatal "mkinitcpio not installed in target system."
 
-    [[ -d "$MNT/boot/EFI/Linux" ]] || fatal "UKI directory missing: $MNT/boot/EFI/Linux — run bootloader.sh first."
+    [[ -d "$MNT/boot/EFI/Linux" ]] \
+        || fatal "UKI directory missing: $MNT/boot/EFI/Linux — run bootloader.sh first."
 
     log "[*] Pre-flight checks OK."
 }
@@ -61,6 +66,17 @@ Enter UEFI firmware, clear Secure Boot keys, and rerun."
 # ==============================================================================
 
 enroll_custom_keys() {
+    log "[*] Creating Secure Boot keys..."
+    arch-chroot "$MNT" /usr/bin/sbctl create-keys \
+        || fatal "sbctl create-keys failed."
+
+    log "[*] Building and signing UKI..."
+    arch-chroot "$MNT" mkinitcpio -P \
+        || fatal "mkinitcpio failed."
+
+    [[ -f "$MNT$UKI_PATH" ]] \
+        || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
+
     clear
     echo "================================================="
     echo "   WARNING — SECURE BOOT KEY ENROLLMENT"
@@ -74,11 +90,8 @@ enroll_custom_keys() {
     echo "  Type ENROLL to continue:"
     echo "  Type Q to abort:"
     echo
-    log "[*] Creating Secure Boot keys..."
 
-    arch-chroot /mnt sbctl create-keys || fatal "sbctl create-keys failed."
-
-        local confirm
+    local confirm
     read -rp "> " confirm
     [[ "$confirm" == "Q" || "$confirm" == "q" ]] \
         && fatal "Secure Boot enrollment aborted by user."
@@ -86,13 +99,8 @@ enroll_custom_keys() {
         || fatal "Secure Boot enrollment aborted."
 
     log "[*] Enrolling keys into firmware..."
-    arch-chroot "$MNT" sbctl enroll-keys --yes-this-might-brick-my-machine \
+    arch-chroot "$MNT" /usr/bin/sbctl enroll-keys --yes-this-might-brick-my-machine \
         || fatal "sbctl enroll-keys failed."
-
-    log "[*] Building and signing UKI..."
-    arch-chroot "$MNT" mkinitcpio -P || fatal "mkinitcpio failed."
-
-    [[ -f "$MNT$UKI_PATH" ]] || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
 
     log "[*] Custom keys enrolled."
 }
@@ -104,9 +112,11 @@ enroll_custom_keys() {
 sign_microsoft_mode() {
     log "[*] Microsoft mode — building and signing UKI..."
 
-    arch-chroot "$MNT" mkinitcpio -P || fatal "mkinitcpio failed."
+    arch-chroot "$MNT" mkinitcpio -P \
+        || fatal "mkinitcpio failed."
 
-    [[ -f "$MNT$UKI_PATH" ]] || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
+    [[ -f "$MNT$UKI_PATH" ]] \
+        || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
 
     log "[*] UKI built."
     log "[!] NOTE: Firmware must trust the signing key — PK/KEK/DB not modified."
@@ -118,11 +128,11 @@ sign_microsoft_mode() {
 
 verify_signatures() {
     log "[*] Verifying signed files..."
-    arch-chroot "$MNT" sbctl verify \
+    arch-chroot "$MNT" /usr/bin/sbctl verify \
         || fatal "Signature verification failed."
 
     log "[*] Secure Boot status:"
-    arch-chroot "$MNT" sbctl status
+    arch-chroot "$MNT" /usr/bin/sbctl status
 }
 
 # ==============================================================================
