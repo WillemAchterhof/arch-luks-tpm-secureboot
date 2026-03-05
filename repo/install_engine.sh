@@ -190,15 +190,7 @@ confirm_secureboot_enroll() {
     echo "  Type ENROLL to continue:"
     echo
 
-    confirm_exe the exact device path to continue."
-    echo "  Type Q to abort."
-    echo
-
-    local input
-    read -rp "> " input
-
-    [[ "$input" == "Q" || "$input" == "q" ]] && fatal "User aborted at disk confirmation."
-    [[ "$input"act "ENROLL" || fatal "Secure Boot enrollment aborted."
+    confirm_exact "ENROLL" || fatal "Secure Boot enrollment aborted."
 }
 
 
