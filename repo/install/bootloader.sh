@@ -80,14 +80,15 @@ configure_uki_preset() {
 
     mkdir -p "$MNT/boot/EFI/Linux"
 
-    cat > "$MNT/etc/mkinitcpio.d/linux.preset" <<'EOF'
-PRESETS=('default')
+cat > /mnt/etc/mkinitcpio.d/linux.preset << 'EOF'
+ALL_config="/etc/mkinitcpio.conf"
 ALL_kver="/boot/vmlinuz-linux"
-default_uki="/boot/EFI/Linux/arch-linux.efi"
-EOF
 
-    log "[*] UKI preset configured."
-}
+PRESETS=('default')
+
+default_uki="/boot/EFI/Linux/arch-linux.efi"
+default_options="--splash /usr/share/systemd/bootctl/splash-arch.bmp"
+EOF
 
 # ==============================================================================
 # BUILD UKI
