@@ -69,8 +69,7 @@ Enter UEFI firmware, clear Secure Boot keys, and rerun."
 register_uki() {
     log "[*] Registering UKI with sbctl..."
 
-    # Register the UKI path so sbctl sign-all knows what to sign
-    arch-chroot "$MNT" /usr/bin/sbctl add-file "$UKI_PATH" \
+    arch-chroot "$MNT" /usr/bin/sbctl sign --save "$UKI_PATH" \
         || fatal "Failed to register UKI with sbctl."
 
     log "[*] UKI registered: $UKI_PATH"
@@ -105,8 +104,6 @@ enroll_custom_keys() {
     arch-chroot "$MNT" /usr/bin/sbctl create-keys \
         || fatal "sbctl create-keys failed."
 
-    register_uki
-
     clear
     echo "================================================="
     echo "   WARNING — SECURE BOOT KEY ENROLLMENT"
@@ -134,6 +131,7 @@ enroll_custom_keys() {
 
     log "[*] Custom keys enrolled."
 
+    register_uki
     build_and_sign_uki
 }
 
