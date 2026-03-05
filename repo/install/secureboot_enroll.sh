@@ -67,7 +67,7 @@ Enter UEFI firmware, clear Secure Boot keys, and rerun."
 
 enroll_custom_keys() {
     log "[*] Creating Secure Boot keys..."
-    arch-chroot "$MNT" /usr/bin/sbctl create-keys \
+    arch-chroot "$MNT" sbctl create-keys \
         || fatal "sbctl create-keys failed."
 
     log "[*] Building and signing UKI..."
@@ -99,7 +99,7 @@ enroll_custom_keys() {
         || fatal "Secure Boot enrollment aborted."
 
     log "[*] Enrolling keys into firmware..."
-    arch-chroot "$MNT" /usr/bin/sbctl enroll-keys --yes-this-might-brick-my-machine \
+    arch-chroot "$MNT" sbctl enroll-keys --yes-this-might-brick-my-machine \
         || fatal "sbctl enroll-keys failed."
 
     log "[*] Custom keys enrolled."
@@ -128,11 +128,11 @@ sign_microsoft_mode() {
 
 verify_signatures() {
     log "[*] Verifying signed files..."
-    arch-chroot "$MNT" /usr/bin/sbctl verify \
+    arch-chroot "$MNT" sbctl verify \
         || fatal "Signature verification failed."
 
     log "[*] Secure Boot status:"
-    arch-chroot "$MNT" /usr/bin/sbctl status
+    arch-chroot "$MNT" sbctl status
 }
 
 # ==============================================================================
