@@ -94,8 +94,8 @@ setup_pacman_config() {
 # ==============================================================================
 
 setup_pacman_downloads() {
-    local iso_parallel="${PACMAN_PARALLEL_ISO:-50}"
-    local chroot_parallel="${PACMAN_PARALLEL_CHROOT:-20}"
+    local iso_parallel="${PACMAN_PARALLEL_ISO:-20}"
+    local chroot_parallel="${PACMAN_PARALLEL_CHROOT:-10}"
 
     [[ "$iso_parallel" =~ ^[0-9]+$ ]] \
         || fatal "PACMAN_PARALLEL_ISO must be numeric: $iso_parallel"
