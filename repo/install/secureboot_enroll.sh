@@ -11,7 +11,7 @@ IFS=$'\n\t'
 : "${SB_MODE:?SB_MODE not set}"
 
 MNT="/mnt"
- ="/boot/EFI/Linux/arch-linux.efi"
+UKI_PATH="/boot/EFI/Linux/arch-linux.efi"
 
 # ==============================================================================
 # PRE-FLIGHT CHECKS
