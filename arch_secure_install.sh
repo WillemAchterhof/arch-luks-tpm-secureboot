@@ -141,7 +141,6 @@ rotate_repo() {
 
     # Copy fresh clone into repo/
     cp -a "$TEMP_DIR/repo/." "$REPO_DIR/"
-        || fatal "copy failed during repo install."
 
     # Verify install_engine.sh landed correctly
     [[ -f "$REPO_DIR/install_engine.sh" ]] \
