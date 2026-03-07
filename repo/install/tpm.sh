@@ -7,15 +7,14 @@ IFS=$'\n\t'
 #  TPM2 enrollment for LUKS auto-unlock (Post-install, run inside system)
 # ==============================================================================
 
-log()   { echo -e "[*] $*"; }
-fatal() { echo -e "[✖] $*" >&2; exit 1; }
+LUKS_PART=""
 
 # ==============================================================================
 # VERIFY UEFI + SECURE BOOT
 # ==============================================================================
-j
+
 verify_secureboot_active() {
-    log "Verifying UEFI and Secure Boot..."
+    log "[*] Verifying UEFI and Secure Boot..."
 
     [[ -d /sys/firmware/efi ]] \
         || fatal "System not booted in UEFI mode."
@@ -30,20 +29,22 @@ verify_secureboot_active() {
     [[ -n "$sb_file" ]] \
         || fatal "Cannot read Secure Boot state (EFI vars inaccessible)."
 
-    value=$(tail -c +5 "$sb_file" | hexdump -v -e '1/1 "%d"' | tr -d '\n[:space:]')
+    # EFI variables have a 4-byte attribute header — skip it with +5
+    value=$(tail -c +5 "$sb_file" \
+        | hexdump -v -e '1/1 "%d"' | tr -d '\n[:space:]')
 
     [[ "$value" == "1" ]] \
         || fatal "Secure Boot is NOT enabled. Enable it in firmware and reboot."
 
-    log "Secure Boot is active."
+    log "[*] Secure Boot is active."
 }
 
 # ==============================================================================
-# DETECT ROOT LUKS DEVICE
+# DETECT ROOT LUKS PARTITION
 # ==============================================================================
 
 detect_luks_device() {
-    log "Detecting root LUKS device..."
+    log "[*] Detecting root LUKS partition..."
 
     local root_source
     root_source=$(findmnt -no SOURCE /) \
@@ -52,13 +53,19 @@ detect_luks_device() {
     [[ "$root_source" == /dev/mapper/* ]] \
         || fatal "Root is not on a mapped LUKS device."
 
-    ROOT_DEV=$(lsblk -no PKNAME "$root_source" | head -n1)
-    [[ -n "$ROOT_DEV" ]] \
-        || fatal "Failed resolving underlying LUKS device."
+    # PKNAME gives the parent partition (e.g. sda2, nvme0n1p2) —
+    # systemd-cryptenroll needs the LUKS partition, not the whole disk.
+    LUKS_PART=$(lsblk -no PKNAME "$root_source" | head -n1)
 
-    ROOT_DEV="/dev/$ROOT_DEV"
+    [[ -n "$LUKS_PART" ]] \
+        || fatal "Failed resolving underlying LUKS partition."
 
-    log "LUKS device detected: $ROOT_DEV"
+    LUKS_PART="/dev/$LUKS_PART"
+
+    [[ -b "$LUKS_PART" ]] \
+        || fatal "Resolved LUKS partition is not a block device: $LUKS_PART"
+
+    log "[*] LUKS partition detected: $LUKS_PART"
 }
 
 # ==============================================================================
@@ -66,34 +73,36 @@ detect_luks_device() {
 # ==============================================================================
 
 enroll_tpm() {
-    log "Starting TPM2 enrollment..."
+    log "[*] Starting TPM2 enrollment..."
+
     echo
     echo "================================================="
     echo "              TPM2 ENROLLMENT"
     echo "================================================="
     echo
-    echo "Device : $ROOT_DEV"
-    echo "PCRs   : 0 + 7 + 11"
-    echo "Mode   : TPM2 + PIN"
+    echo "  Device : $LUKS_PART"
+    echo "  PCRs   : 0 + 7 + 11"
+    echo "  Mode   : TPM2 + PIN"
     echo
-    echo "You will be prompted for:"
-    echo "  1. Existing LUKS passphrase"
-    echo "  2. New TPM PIN (second factor at boot)"
+    echo "  You will be prompted for:"
+    echo "    1. Existing LUKS passphrase"
+    echo "    2. New TPM PIN (second factor at boot)"
     echo
-    read -rp "Press ENTER to continue or Ctrl+C to abort..."
+    read -rp "  Press ENTER to continue or Ctrl+C to abort..."
 
-    if cryptsetup luksDump "$ROOT_DEV" | grep -qi "systemd-tpm1"; then
-    	log "TPM1 token already present. Skipping enrollment."
-    	return
+    # Check for existing TPM2 token — skip if already enrolled
+    if cryptsetup luksDump "$LUKS_PART" | grep -qi "systemd-tpm2"; then
+        log "[*] TPM2 token already present — skipping enrollment."
+        return
     fi
 
     systemd-cryptenroll \
         --tpm2-device=auto \
         --tpm2-pcrs=0+7+11 \
         --tpm2-with-pin=yes \
-        "$ROOT_DEV"
+        "$LUKS_PART"
 
-    log "TPM2 enrollment complete."
+    log "[*] TPM2 enrollment complete."
 }
 
 # ==============================================================================
@@ -101,12 +110,12 @@ enroll_tpm() {
 # ==============================================================================
 
 verify_enrollment() {
-    log "Verifying LUKS token..."
+    log "[*] Verifying LUKS token..."
 
-    cryptsetup luksDump "$ROOT_DEV" | grep -qi "systemd-tpm2" \
+    cryptsetup luksDump "$LUKS_PART" | grep -qi "systemd-tpm2" \
         || fatal "TPM2 token not found in LUKS header."
 
-    log "TPM2 token successfully detected."
+    log "[*] TPM2 token successfully detected."
 }
 
 # ==============================================================================
@@ -118,6 +127,6 @@ detect_luks_device
 enroll_tpm
 verify_enrollment
 
-log "TPM setup complete."
-log "On next reboot, LUKS will unlock via TPM2 + PIN."
-log "Your original LUKS passphrase remains valid as fallback."
+log "[*] TPM setup complete."
+log "[*] On next reboot, LUKS will unlock via TPM2 + PIN."
+log "[*] Your original LUKS passphrase remains valid as fallback."

@@ -11,7 +11,10 @@ IFS=$'\n\t'
 : "${TIMEZONE:?TIMEZONE not set}"
 : "${INSTALL_HOSTNAME:?INSTALL_HOSTNAME not set}"
 : "${USERNAME:?USERNAME not set}"
+: "${USER_SHELL:?USER_SHELL not set}"
+: "${USER_GROUPS:?USER_GROUPS not set}"
 : "${CONFIGS_DIR:?CONFIGS_DIR not set}"
+: "${USB_ROOT:?USB_ROOT not set}"
 
 MNT="/mnt"
 
@@ -59,6 +62,7 @@ install_base() {
         reflector \
         libpwquality \
         polkit \
+        plymouth \
         tar gzip unzip p7zip
 
     log "[*] Base system installed."
@@ -145,10 +149,21 @@ EOF
 configure_user() {
     log "[*] Creating user: $USERNAME"
 
+    # Build supplementary group list: always include wheel, merge with USER_GROUPS
+    local groups="wheel"
+    if [[ -n "${USER_GROUPS:-}" ]]; then
+        # Combine wheel with USER_GROUPS, deduplicate, comma-separate
+        groups="$(printf '%s\n' wheel $(tr ',' '\n' <<< "$USER_GROUPS") \
+            | sort -u | tr '\n' ',' | sed 's/,$//')"
+    fi
+
+    log "[*] Groups: $groups"
+    log "[*] Shell:  $USER_SHELL"
+
     arch-chroot "$MNT" useradd \
         -m \
-        -G wheel \
-        -s /bin/bash \
+        -G "$groups" \
+        -s "$USER_SHELL" \
         "$USERNAME"
 
     echo
@@ -197,7 +212,7 @@ EOF
     # Firewall
     [[ -f "$sys_cfg/nftables.conf" ]] \
         || fatal "Missing config: $sys_cfg/nftables.conf"
-    cp "$sys_cfg/nftables.conf"     "$MNT/etc/nftables.conf"
+    cp "$sys_cfg/nftables.conf" "$MNT/etc/nftables.conf"
 
     # Sysctl hardening
     [[ -f "$sys_cfg/99-hardening.conf" ]] \
@@ -207,7 +222,7 @@ EOF
     # Kernel module blacklist
     [[ -f "$sys_cfg/blacklist.conf" ]] \
         || fatal "Missing config: $sys_cfg/blacklist.conf"
-    cp "$sys_cfg/blacklist.conf"    "$MNT/etc/modprobe.d/blacklist.conf"
+    cp "$sys_cfg/blacklist.conf" "$MNT/etc/modprobe.d/blacklist.conf"
 
     # UKI auto-signing pacman hook
     [[ -f "$sys_cfg/zz-sbctl-uki.hook" ]] \
@@ -234,51 +249,6 @@ copy_wifi_config() {
     chmod 600 "$MNT/etc/NetworkManager/system-connections/wifi.conf"
 
     log "[*] WiFi config deployed."
-}
-
-# ==============================================================================
-# POSTBOOT AUTOSTART
-# ==============================================================================
-
-deploy_postboot_autostart() {
-    log "[*] Deploying post-boot autostart..."
-
-    local user_home="$MNT/home/$USERNAME"
-    local docs_dir="$user_home/Documents"
-    local profile="$user_home/.bash_profile"
-    local script_src="$USB_ROOT/arch_secure_install.sh"
-
-    mkdir -p "$docs_dir"
-
-    [[ -f "$script_src" ]] \
-        || fatal "arch_secure_install.sh not found at: $script_src"
-    cp "$script_src" "$docs_dir/arch_secure_install.sh"
-    chmod 750 "$docs_dir/arch_secure_install.sh"
-
-    arch-chroot "$MNT" chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/Documents"
-
-    cat >> "$profile" <<'BASHEOF'
-# ARCH_POSTBOOT_START
-if [[ -f "$HOME/Documents/arch_secure_install.sh" ]]; then
-    echo
-    echo "================================================="
-    echo "   Post-Boot Setup Pending"
-    echo "================================================="
-    echo
-    echo "  Enter your sudo password to continue installation."
-    echo "  Press Ctrl+C to abort."
-    echo
-    echo "  To run manually later:"
-    echo "      sudo bash ~/Documents/arch_secure_install.sh"
-    echo
-    sudo bash "$HOME/Documents/arch_secure_install.sh"
-fi
-# ARCH_POSTBOOT_END
-BASHEOF
-
-    arch-chroot "$MNT" chown "$USERNAME:$USERNAME" "/home/$USERNAME/.bash_profile"
-
-    log "[*] Post-boot autostart deployed."
 }
 
 # ==============================================================================
@@ -320,6 +290,54 @@ configure_services() {
         systemd-pstore.service
 
     log "[*] Services configured."
+}
+
+# ==============================================================================
+# POSTBOOT AUTOSTART
+# ==============================================================================
+
+deploy_postboot_autostart() {
+    log "[*] Deploying post-boot autostart..."
+
+    local user_home="$MNT/home/$USERNAME"
+    local docs_dir="$user_home/Documents"
+    local profile="$user_home/.bash_profile"
+    local script_src="$USB_ROOT/arch_secure_install.sh"
+
+    mkdir -p "$docs_dir"
+
+    # arch_secure_install.sh is copied to the installed system so it can
+    # re-run on first boot. The USB will not be mounted at that point —
+    # the script will re-download or verify the repo from the internet.
+    [[ -f "$script_src" ]] \
+        || fatal "arch_secure_install.sh not found at: $script_src"
+    cp "$script_src" "$docs_dir/arch_secure_install.sh"
+    chmod 750 "$docs_dir/arch_secure_install.sh"
+
+    arch-chroot "$MNT" chown -R "$USERNAME:$USERNAME" "/home/$USERNAME/Documents"
+
+    cat >> "$profile" <<'BASHEOF'
+# ARCH_POSTBOOT_START
+if [[ -f "$HOME/Documents/arch_secure_install.sh" ]]; then
+    echo
+    echo "================================================="
+    echo "   Post-Boot Setup Pending"
+    echo "================================================="
+    echo
+    echo "  Enter your sudo password to continue installation."
+    echo "  Press Ctrl+C to abort."
+    echo
+    echo "  To run manually later:"
+    echo "      sudo bash ~/Documents/arch_secure_install.sh"
+    echo
+    sudo bash "$HOME/Documents/arch_secure_install.sh"
+fi
+# ARCH_POSTBOOT_END
+BASHEOF
+
+    arch-chroot "$MNT" chown "$USERNAME:$USERNAME" "/home/$USERNAME/.bash_profile"
+
+    log "[*] Post-boot autostart deployed."
 }
 
 # ==============================================================================

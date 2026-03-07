@@ -37,6 +37,7 @@ setup_timezone() {
 
     log "[*] Setting timezone: $TIMEZONE"
     timedatectl set-timezone "$TIMEZONE"
+    export TIMEZONE
 }
 
 # ==============================================================================
@@ -57,6 +58,15 @@ setup_mirrors() {
         MIRROR_COUNTRIES="${MIRROR_COUNTRIES:-Netherlands,Germany}"
     fi
 
+    export MIRROR_COUNTRIES
+
+    # reflector is not included on the Arch ISO by default
+    if ! command -v reflector &>/dev/null; then
+        log "[*] reflector not found — installing..."
+        pacman -Sy --noconfirm reflector \
+            || fatal "Failed to install reflector."
+    fi
+
     log "[*] Running reflector for: $MIRROR_COUNTRIES"
 
     reflector \
@@ -71,29 +81,12 @@ setup_mirrors() {
 }
 
 # ==============================================================================
-# PACMAN LIVE ISO CONFIG
+# PACMAN CONFIG + PARALLEL DOWNLOADS
+# Configured together to avoid multiple sed passes on pacman.conf
+# Parallel downloads set before sync so pacstrap benefits from the setting
 # ==============================================================================
 
 setup_pacman_config() {
-    log "[*] Configuring pacman on live ISO..."
-
-    sed -i \
-        -e 's/^#Color/Color/' \
-        -e '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' \
-        /etc/pacman.conf
-
-    log "[*] Syncing package databases..."
-    pacman -Sy --noconfirm \
-        || fatal "pacman -Sy failed — check mirrors."
-
-    log "[*] pacman configured and databases synced."
-}
-
-# ==============================================================================
-# PACMAN PARALLEL DOWNLOADS
-# ==============================================================================
-
-setup_pacman_downloads() {
     local iso_parallel="${PACMAN_PARALLEL_ISO:-20}"
     local chroot_parallel="${PACMAN_PARALLEL_CHROOT:-10}"
 
@@ -103,14 +96,24 @@ setup_pacman_downloads() {
     [[ "$chroot_parallel" =~ ^[0-9]+$ ]] \
         || fatal "PACMAN_PARALLEL_CHROOT must be numeric: $chroot_parallel"
 
-    # Live ISO — used for pacstrap
+    log "[*] Configuring pacman on live ISO..."
     log "[*] Setting ParallelDownloads=$iso_parallel on live ISO..."
-    sed -i "s/^#\?ParallelDownloads.*/ParallelDownloads = $iso_parallel/" \
+
+    sed -i \
+        -e 's/^#Color/Color/' \
+        -e "s/^#\?ParallelDownloads.*/ParallelDownloads = $iso_parallel/" \
+        -e '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' \
         /etc/pacman.conf
 
     # Chroot value stored for system.sh to apply after pacstrap
     export PACMAN_PARALLEL_CHROOT="$chroot_parallel"
     log "[*] PACMAN_PARALLEL_CHROOT=$chroot_parallel (applied by system.sh after pacstrap)"
+
+    log "[*] Syncing package databases..."
+    pacman -Sy --noconfirm \
+        || fatal "pacman -Sy failed — check mirrors."
+
+    log "[*] pacman configured and databases synced."
 }
 
 # ==============================================================================
@@ -121,6 +124,5 @@ setup_ntp
 setup_timezone
 setup_mirrors
 setup_pacman_config
-setup_pacman_downloads
 
 log "[*] pacman_mirrors.sh complete."

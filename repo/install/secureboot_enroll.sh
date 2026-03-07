@@ -35,8 +35,36 @@ preflight_checks() {
     [[ -d "$MNT/boot/EFI/Linux" ]] \
         || fatal "UKI directory missing: $MNT/boot/EFI/Linux — run bootloader.sh first."
 
+    [[ -f "$MNT$UKI_PATH" ]] \
+        || fatal "UKI not found: $MNT$UKI_PATH — run bootloader.sh first."
+
     log "[*] Pre-flight checks OK."
 }
+
+# ==============================================================================
+# EFIVARFS — MOUNT/UNMOUNT INSIDE CHROOT
+# ==============================================================================
+
+# sbctl needs access to EFI variables to create keys and enroll them.
+# efivarfs is not automatically mounted inside arch-chroot.
+
+mount_efivarfs() {
+    if ! mountpoint -q "$MNT/sys/firmware/efi/efivars"; then
+        log "[*] Mounting efivarfs inside chroot..."
+        mount --bind /sys/firmware/efi/efivars \
+            "$MNT/sys/firmware/efi/efivars" \
+            || fatal "Failed to mount efivarfs inside chroot."
+    fi
+}
+
+umount_efivarfs() {
+    if mountpoint -q "$MNT/sys/firmware/efi/efivars"; then
+        log "[*] Unmounting efivarfs from chroot..."
+        umount "$MNT/sys/firmware/efi/efivars" || true
+    fi
+}
+
+trap umount_efivarfs EXIT
 
 # ==============================================================================
 # VERIFY SETUP MODE
@@ -45,58 +73,38 @@ preflight_checks() {
 verify_setup_mode() {
     log "[*] Checking firmware Setup Mode..."
 
-    local setup_mode_var="/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c"
+    local setup_mode_var
+    setup_mode_var="/sys/firmware/efi/efivars/SetupMode-8be4df61-93ca-11d2-aa0d-00e098032b8c"
 
     [[ -f "$setup_mode_var" ]] \
         || fatal "Cannot read Setup Mode EFI variable."
 
+    # EFI variables have a 4-byte attribute header — skip it with +5
     local val
-    val=$(od -An -t u1 "$setup_mode_var" | awk '{print $NF}')
+    val=$(tail -c +5 "$setup_mode_var" \
+        | hexdump -v -e '1/1 "%d"' | tr -d '\n[:space:]')
 
-    if [[ "$val" != "1" ]]; then
-        fatal "Firmware is NOT in Setup Mode.
+    [[ "$val" == "1" ]] \
+        || fatal "Firmware is NOT in Setup Mode.
 Enter UEFI firmware, clear Secure Boot keys, and rerun."
-    fi
 
     log "[*] Setup Mode confirmed."
 }
 
 # ==============================================================================
-# CUSTOM KEYS — CREATE, BUILD, ENROLL
+# CUSTOM KEYS — CREATE, SIGN, ENROLL
 # ==============================================================================
 
 enroll_custom_keys() {
+    mount_efivarfs
+
     log "[*] Creating Secure Boot keys..."
     arch-chroot "$MNT" /usr/bin/sbctl create-keys \
         || fatal "sbctl create-keys failed."
 
-    log "[*] Building and signing UKI..."
-    arch-chroot "$MNT" mkinitcpio -P \
-        || fatal "mkinitcpio failed."
-
-    [[ -f "$MNT$UKI_PATH" ]] \
-        || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
-
-    clear
-    echo "================================================="
-    echo "   WARNING — SECURE BOOT KEY ENROLLMENT"
-    echo "================================================="
-    echo
-    echo "  This will:"
-    echo "    - Enroll custom PK/KEK/DB keys"
-    echo "    - Remove Microsoft keys"
-    echo "    - Allow ONLY your signed kernels to boot"
-    echo
-    echo "  Type ENROLL to continue:"
-    echo "  Type Q to abort:"
-    echo
-
-    local confirm
-    read -rp "> " confirm
-    [[ "$confirm" == "Q" || "$confirm" == "q" ]] \
-        && fatal "Secure Boot enrollment aborted by user."
-    [[ "$confirm" == "ENROLL" ]] \
-        || fatal "Secure Boot enrollment aborted."
+    log "[*] Signing UKI..."
+    arch-chroot "$MNT" /usr/bin/sbctl sign "$UKI_PATH" \
+        || fatal "sbctl sign failed."
 
     log "[*] Enrolling keys into firmware..."
     arch-chroot "$MNT" /usr/bin/sbctl enroll-keys --yes-this-might-brick-my-machine \
@@ -106,20 +114,24 @@ enroll_custom_keys() {
 }
 
 # ==============================================================================
-# MICROSOFT MODE — BUILD AND SIGN UKI ONLY
+# MICROSOFT MODE — SIGN UKI ONLY
 # ==============================================================================
 
 sign_microsoft_mode() {
-    log "[*] Microsoft mode — building and signing UKI..."
+    mount_efivarfs
 
-    arch-chroot "$MNT" mkinitcpio -P \
-        || fatal "mkinitcpio failed."
+    log "[*] Microsoft mode — signing UKI with sbctl..."
 
-    [[ -f "$MNT$UKI_PATH" ]] \
-        || fatal "UKI not found after mkinitcpio: $MNT$UKI_PATH"
+    # Keys are created but NOT enrolled — firmware retains its Microsoft keys.
+    # The UKI is signed so it can be verified by the existing firmware trust chain.
+    arch-chroot "$MNT" /usr/bin/sbctl create-keys \
+        || fatal "sbctl create-keys failed."
 
-    log "[*] UKI built."
-    log "[!] NOTE: Firmware must trust the signing key — PK/KEK/DB not modified."
+    arch-chroot "$MNT" /usr/bin/sbctl sign "$UKI_PATH" \
+        || fatal "sbctl sign failed."
+
+    log "[*] UKI signed."
+    log "[!] NOTE: Firmware Microsoft keys retained — PK/KEK/DB not modified."
 }
 
 # ==============================================================================
@@ -151,7 +163,9 @@ case "$SB_MODE" in
         ;;
     microsoft)
         sign_microsoft_mode
-        verify_signatures
+        # sbctl verify checks against enrolled sbctl keys only —
+        # not meaningful in microsoft mode where firmware keys are retained.
+        log "[*] Skipping sbctl verify — not applicable in microsoft mode."
         ;;
     *)
         fatal "Unknown SB_MODE: $SB_MODE"

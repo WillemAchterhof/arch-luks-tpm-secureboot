@@ -12,19 +12,6 @@ IFS=$'\n\t'
 : "${SB_ROOT:?SB_ROOT not set}"
 : "${SB_CHOICE_FILE:?SB_CHOICE_FILE not set}"
 
-INSTALLATION_ABORTED=false
-
-# ==============================================================================
-# CLEANUP
-# ==============================================================================
-
-cleanup() {
-    if [[ "${INSTALLATION_ABORTED:-false}" == "true" ]]; then
-        rm -f "$SB_CHOICE_FILE"
-    fi
-}
-trap cleanup EXIT INT TERM
-
 # ==============================================================================
 # DETECT SECURE BOOT STATE
 # ==============================================================================
@@ -39,6 +26,7 @@ detect_secureboot() {
     done
 
     if [[ -n "$SB_FILE" ]]; then
+        # EFI variables have a 4-byte attribute header — skip it with +5
         value=$(tail -c +5 "$SB_FILE" | hexdump -v -e '1/1 "%d"' | tr -d '\n[:space:]')
         [[ "$value" == "1" ]] && SB_ENABLED=true
     fi
@@ -48,6 +36,7 @@ detect_secureboot() {
     done
 
     if [[ -n "$SM_FILE" ]]; then
+        # EFI variables have a 4-byte attribute header — skip it with +5
         value=$(tail -c +5 "$SM_FILE" | hexdump -v -e '1/1 "%d"' | tr -d '\n[:space:]')
         [[ "$value" == "1" ]] && SB_SETUP_MODE=true
     fi
@@ -106,12 +95,62 @@ present_options() {
 }
 
 # ==============================================================================
+# HANDLE CUSTOM KEYS — NOT IN SETUP MODE
+# ==============================================================================
+
+handle_custom_not_setup_mode() {
+    clear
+    echo
+    echo "================================================="
+    echo "   Custom Keys — UEFI Setup Mode Required"
+    echo "================================================="
+    echo
+    echo "  To enroll custom keys:"
+    echo "    1. Enter UEFI firmware settings"
+    echo "    2. Delete all Secure Boot keys"
+    echo "       (or 'Reset to Setup Mode')"
+    echo "    3. Save and reboot back into Arch ISO"
+    echo
+    echo "  [1] Reboot to UEFI firmware now"
+    echo "  [2] Use Microsoft certificates instead"
+    echo "  [q] Abort installation"
+    echo
+
+    while true; do
+        read -rp "  Select [1]: " REBOOT_CHOICE
+        REBOOT_CHOICE="${REBOOT_CHOICE:-1}"
+
+        case "$REBOOT_CHOICE" in
+            1)
+                write_choice "custom"
+                log "[*] Rebooting to UEFI firmware..."
+                log "[*] Re-run the installer after enabling Setup Mode."
+                sleep 2
+                # NOTE: This exits the sourced script intentionally,
+                # halting install_engine.sh before the reboot completes.
+                systemctl reboot --firmware-setup
+                exit 0
+                ;;
+            2)
+                write_choice "microsoft"
+                return
+                ;;
+            q|Q)
+                fatal "Installation aborted."
+                ;;
+            *)
+                log "[!] Invalid option."
+                sleep 1
+                ;;
+        esac
+    done
+}
+
+# ==============================================================================
 # SELECTION LOOP
 # ==============================================================================
 
 select_secureboot_mode() {
-    local SB_CHOICE REBOOT_CHOICE
-
     while true; do
         read -rp "  Select [1]: " SB_CHOICE
         SB_CHOICE="${SB_CHOICE:-1}"
@@ -120,58 +159,18 @@ select_secureboot_mode() {
         case "$SB_CHOICE" in
             1)
                 write_choice "microsoft"
-                break
+                return
                 ;;
             2)
                 if [[ "$SB_SETUP_MODE" == true ]]; then
                     write_choice "custom"
-                    break
+                    return
                 else
-                    clear
-                    echo
-                    echo "================================================="
-                    echo "   Custom Keys — UEFI Setup Mode Required"
-                    echo "================================================="
-                    echo
-                    echo "  To enroll custom keys:"
-                    echo "    1. Enter UEFI firmware settings"
-                    echo "    2. Delete all Secure Boot keys"
-                    echo "       (or 'Reset to Setup Mode')"
-                    echo "    3. Save and reboot back into Arch ISO"
-                    echo
-                    echo "  [1] Reboot to UEFI firmware now"
-                    echo "  [2] Use Microsoft certificates instead"
-                    echo "  [q] Abort installation"
-                    echo
-
-                    read -rp "  Select [1]: " REBOOT_CHOICE
-                    REBOOT_CHOICE="${REBOOT_CHOICE:-1}"
-
-                    case "$REBOOT_CHOICE" in
-                        1)
-                            write_choice "custom"
-                            log "[*] Rebooting to UEFI firmware..."
-                            sleep 2
-                            systemctl reboot --firmware-setup
-                            exit 0
-                            ;;
-                        2)
-                            write_choice "microsoft"
-                            break 2
-                            ;;
-                        q|Q)
-                            INSTALLATION_ABORTED=true
-                            fatal "Installation aborted."
-                            ;;
-                        *)
-                            log "[!] Invalid option."
-                            sleep 1
-                            ;;
-                    esac
+                    handle_custom_not_setup_mode
+                    return
                 fi
                 ;;
             q|Q)
-                INSTALLATION_ABORTED=true
                 fatal "Installation aborted."
                 ;;
             *)

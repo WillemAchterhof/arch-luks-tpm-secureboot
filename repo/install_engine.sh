@@ -117,11 +117,7 @@ select_mode() {
         echo "    - Ataraxxia     https://github.com/Ataraxxia/secure-arch"
         echo
         echo "================================================="
-        echo
-        echo "================================================="
-        echo "            Arch Secure Installer"
-        echo "================================================="
-        echo
+        echo 
         echo "  Select mode:"
         echo "    1) Full Interactive Setup"
         echo "    2) Load Default Profile (Willem)"
@@ -308,7 +304,7 @@ run_installation() {
             echo "  if TPM enrollment fails."
             echo
 
-            local confirm
+             confirm
             while true; do
                 read -rp "  Type YES to confirm you saved the key: " confirm
                 [[ "$confirm" == "YES" ]] && break
@@ -364,7 +360,7 @@ run_installation() {
             fi
 
             # Remove installer script from Documents
-            local installer="/home/${USERNAME:-}/Documents/arch_secure_install.sh"
+            installer="/home/${USERNAME:-}/Documents/arch_secure_install.sh"
             if [[ -f "$installer" ]]; then
                 rm -f "$installer"
                 log "[*] arch_secure_install.sh removed from ~/Documents"

@@ -19,6 +19,10 @@ pass_check() {
     log "[+] OK:   $*"
 }
 
+warn_check() {
+    log "[~] WARN: $*"
+}
+
 # ==============================================================================
 # INTERNET
 # ==============================================================================
@@ -53,6 +57,8 @@ check_commands() {
         systemctl
         curl
         git
+        efibootmgr
+        sbctl
     )
 
     for cmd in "${required[@]}"; do
@@ -72,7 +78,8 @@ check_tpm() {
     if [[ -d /sys/class/tpm/tpm0 ]]; then
         pass_check "TPM2 device present: /sys/class/tpm/tpm0"
     else
-        fail_check "No TPM2 device detected — TPM auto-unlock will not be available"
+        # TPM is only used in postboot — absence does not block installation.
+        warn_check "No TPM2 device detected — auto-unlock will not be available after install."
     fi
 }
 
@@ -160,6 +167,8 @@ check_profile() {
         fi
 
         # Must not be the USB installer device
+        # NVMe and MMC cases are checked first to avoid the generic pattern
+        # incorrectly stripping digits from e.g. /dev/nvme0n1p2 → /dev/nvme
         local usb_dev
         [[ -n "${USB_ROOT:-}" ]] || fatal "USB_ROOT is not defined"
         usb_dev=$(df "$USB_ROOT" 2>/dev/null | awk 'NR==2 {print $1}') || true
@@ -175,8 +184,9 @@ check_profile() {
             pass_check "TARGET_DISK is not the USB installer: $TARGET_DISK"
         fi
 
-        # Must not be mounted (checks all partitions on the disk)
-        if lsblk -nr -o MOUNTPOINT "$TARGET_DISK" | grep -q .; then
+        # Must not be mounted — grep '[^[:space:]]' avoids false positives
+        # from blank lsblk output lines for unmounted partitions
+        if lsblk -nr -o MOUNTPOINT "$TARGET_DISK" | grep -q '[^[:space:]]'; then
             fail_check "TARGET_DISK or its partitions are mounted: $TARGET_DISK"
         else
             pass_check "TARGET_DISK is not mounted: $TARGET_DISK"
@@ -193,8 +203,10 @@ check_profile() {
     fi
 
     # EXTRA_PACKAGES — no dangerous characters
+    # Allows letters, numbers, underscores, hyphens, dots, and spaces
+    # to cover package names like lib32-mesa, python3.11, etc.
     if [[ -n "${EXTRA_PACKAGES:-}" ]]; then
-        if [[ "$EXTRA_PACKAGES" =~ [^a-zA-Z0-9_\ \-] ]]; then
+        if [[ "$EXTRA_PACKAGES" =~ [^a-zA-Z0-9_.\ \-] ]]; then
             fail_check "EXTRA_PACKAGES contains invalid characters: $EXTRA_PACKAGES"
         else
             pass_check "EXTRA_PACKAGES: $EXTRA_PACKAGES"

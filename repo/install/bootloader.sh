@@ -32,21 +32,14 @@ get_efi_partnum() {
 configure_mkinitcpio() {
     log "[*] Configuring mkinitcpio..."
 
-    arch-chroot "$MNT" sed -i \
-        's/^BINARIES=.*/BINARIES=()/' \
-        /etc/mkinitcpio.conf
-
-    arch-chroot "$MNT" sed -i \
-        's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt plymouth filesystems fsck)|' \
-        /etc/mkinitcpio.conf
-
-    arch-chroot "$MNT" sed -i \
-        's|^#*COMPRESSION=.*|COMPRESSION="zstd"|' \
-        /etc/mkinitcpio.conf
-
-    arch-chroot "$MNT" sed -i \
-        's|^#*COMPRESSION_OPTIONS=.*|COMPRESSION_OPTIONS="-3"|' \
-        /etc/mkinitcpio.conf
+    # Write installer drop-in instead of patching the base mkinitcpio.conf.
+    # Drop-ins in mkinitcpio.conf.d/ are merged at build time.
+    mkdir -p "$MNT/etc/mkinitcpio.conf.d"
+    cat > "$MNT/etc/mkinitcpio.conf.d/installer.conf" <<'EOF'
+HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt plymouth filesystems fsck)
+COMPRESSION="zstd"
+COMPRESSION_OPTIONS="-3"
+EOF
 
     log "[*] mkinitcpio configured."
 }
@@ -60,8 +53,11 @@ configure_cmdline() {
 
     mkdir -p "$MNT/etc/kernel"
 
+    # NOTE: rd.luks.options=tpm2-device=auto is written now but TPM enrollment
+    # happens in tpm.sh during postboot. On first boot the TPM binding does not
+    # exist yet — the system will fall back to password unlock. This is expected.
     cat > "$MNT/etc/kernel/cmdline" <<EOF
-rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0+7 root=/dev/mapper/cryptroot rootfstype=$ROOT_FS rw lsm=lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality quiet splash
+rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0+7+11 root=/dev/mapper/cryptroot rootfstype=$ROOT_FS rw lsm=lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality quiet splash
 EOF
 
     log "[*] Kernel cmdline written."
@@ -118,15 +114,19 @@ configure_efibootmgr() {
     local efi_partnum
     efi_partnum="$(get_efi_partnum)"
 
-    # Clear all existing boot entries
-    log "[*] Clearing existing EFI boot entries..."
+    # NOTE: This intentionally clears ALL existing EFI boot entries,
+    # including vendor firmware entries, recovery partitions, and memory tests.
+    # Goal: produce a clean, minimal boot order with only Arch Linux.
+    # If you need to preserve firmware entries, do so manually after install.
+    log "[*] Clearing ALL existing EFI boot entries..."
     local entries
-    entries=$(efibootmgr | awk '/Boot[0-9A-F]{4}/ {print $1}' | grep -oP '[0-9A-F]{4}')
+    entries=$(efibootmgr | awk '/Boot[0-9A-F]{4}\*?/ {print $1}' \
+        | grep -oP '[0-9A-F]{4}') || true
 
     while IFS= read -r entry; do
         [[ -n "$entry" ]] || continue
-        log "    Removing entry: $entry"
-        efibootmgr -b "$entry" -B
+        log "    Removing entry: Boot$entry"
+        efibootmgr -b "$entry" -B || log "[!] Failed to remove entry: $entry"
     done <<< "$entries"
 
     # Create Arch Linux entry
@@ -146,7 +146,7 @@ configure_efibootmgr() {
     [[ -n "$new_entry" ]] || fatal "Failed to find new EFI boot entry."
 
     efibootmgr -o "$new_entry"
-    log "[*] Boot order set to: $new_entry"
+    log "[*] Boot order set to: Boot$new_entry"
 
     log "[*] Current EFI entries:"
     efibootmgr

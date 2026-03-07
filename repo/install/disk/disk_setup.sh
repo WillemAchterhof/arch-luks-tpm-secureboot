@@ -4,7 +4,7 @@ IFS=$'\n\t'
 
 # ==============================================================================
 #  Arch Secure Installer — disk/disk_setup.sh
-#  Wipe, partition, LUKS2, ext4, mount
+#  Wipe, partition, LUKS2, ext4/btrfs, mount
 # ==============================================================================
 
 : "${TARGET_DISK:?TARGET_DISK not set}"
@@ -21,9 +21,10 @@ ROOT_FS="${ROOT_FS:-ext4}"
 # ==============================================================================
 
 cleanup() {
-    if cryptsetup status "$CRYPT_NAME" >/dev/null 2>&1; then
-        cryptsetup close "$CRYPT_NAME" || true
-    fi
+    mountpoint -q "$MNT/boot" 2>/dev/null && umount "$MNT/boot"   || true
+    mountpoint -q "$MNT"      2>/dev/null && umount -R "$MNT"     || true
+    cryptsetup status "$CRYPT_NAME" >/dev/null 2>&1 \
+        && cryptsetup close "$CRYPT_NAME" || true
 }
 trap cleanup EXIT
 
@@ -104,16 +105,32 @@ select_efi_size() {
 confirm_disk_destruction() {
     echo
     echo "================================================="
-    echo "   ⚠  DESTRUCTIVE OPERATION WARNING"
+    echo "   ⚠  CONFIRM TARGET DISK"
     echo "================================================="
     echo
-    echo "  Target disk: $TARGET_DISK"
+    echo "  Selected disk: $TARGET_DISK"
     echo
-    echo "  ALL DATA ON THIS DISK WILL BE PERMANENTLY LOST."
+    echo "  Type the device path exactly to confirm:"
     echo
 
+    local input
+    read -rp "  > " input
+    [[ "$input" == "$TARGET_DISK" ]] \
+        || fatal "Disk path mismatch — aborting."
+
+    echo
+    echo "================================================="
+    echo "   ⚠  LAST CHANCE — DESTRUCTIVE OPERATION"
+    echo "================================================="
+    echo
+    echo "  ALL DATA ON $TARGET_DISK WILL BE PERMANENTLY LOST."
+    echo
+    echo "  Wipe mode: $DISK_WIPE_MODE"
+    echo
+
+    local confirm
     read -rp "  Type WIPE to continue: " confirm
-    [[ "$confirm" == "WIPE" ]] || fatal "Disk wipe not confirmed."
+    [[ "$confirm" == "WIPE" ]] || fatal "Disk wipe not confirmed — aborting."
 }
 
 # ==============================================================================
@@ -156,14 +173,14 @@ wipe_disk() {
         zeros)
             log "[*] Overwriting with zeros — this may take a while..."
             dd if=/dev/zero of="$TARGET_DISK" bs=4M status=progress conv=fsync \
-                || log "[!] dd failed — continuing with wipefs+sgdisk"
+                || fatal "dd (zeros) failed — aborting."
             wipefs -af "$TARGET_DISK"
             sgdisk --zap-all "$TARGET_DISK"
             ;;
         random)
             log "[*] Overwriting with random data — this will take a long time..."
             dd if=/dev/urandom of="$TARGET_DISK" bs=4M status=progress conv=fsync \
-                || log "[!] dd failed — continuing with wipefs+sgdisk"
+                || fatal "dd (random) failed — aborting."
             wipefs -af "$TARGET_DISK"
             sgdisk --zap-all "$TARGET_DISK"
             ;;
@@ -184,8 +201,8 @@ wipe_disk() {
 create_partitions() {
     log "[*] Creating GPT layout (EFI: $EFI_SIZE)"
 
-    sgdisk --new=1:0:+"$EFI_SIZE" --typecode=1:EF00 --change-name=1:"EFI" "$TARGET_DISK"
-    sgdisk --new=2:0:0 --typecode=2:8309 --change-name=2:"cryptroot" "$TARGET_DISK"
+    sgdisk --new=1:0:+"$EFI_SIZE" --typecode=1:EF00 --change-name=1:"EFI"       "$TARGET_DISK"
+    sgdisk --new=2:0:0            --typecode=2:8309  --change-name=2:"cryptroot" "$TARGET_DISK"
 
     partprobe "$TARGET_DISK"
     udevadm settle
@@ -202,13 +219,13 @@ detect_argon_memory() {
     local total_mem_kb mem
     total_mem_kb=$(awk '/MemTotal/ {print $2}' /proc/meminfo)
     mem=$(( total_mem_kb / 4 ))
-    mem=$(( mem > 1048576 ? 1048576 : mem ))  # max 1GiB
-    mem=$(( mem < 131072 ? 131072 : mem ))    # min 128MiB
+    mem=$(( mem > 1048576 ? 1048576 : mem ))  # cap at 1GiB
+    mem=$(( mem <  131072 ?  131072 : mem ))  # floor at 128MiB
     echo "$mem"
 }
 
 setup_luks() {
-    local crypt_part luks_pass argon_mem
+    local crypt_part argon_mem luks_pass
     crypt_part="$(get_partition "$TARGET_DISK" 2)"
 
     log "[*] Generating alphanumeric LUKS recovery key..."
@@ -238,7 +255,8 @@ setup_luks() {
         --key-file - \
         "$crypt_part" "$CRYPT_NAME"
 
-    unset luks_pass
+    # luks_pass is a local variable — it goes out of scope on function return.
+    # No unset needed; it is never exported to the environment.
     log "[*] LUKS setup complete."
 }
 
@@ -293,7 +311,7 @@ export_disk_info() {
     EFI_PART="$(get_partition "$TARGET_DISK" 1)"
     ROOT_PART="$(get_partition "$TARGET_DISK" 2)"
 
-    ROOT_UUID="$(blkid -s UUID -o value /dev/mapper/$CRYPT_NAME)" \
+    ROOT_UUID="$(blkid -s UUID -o value "/dev/mapper/$CRYPT_NAME")" \
         || fatal "Failed to read ROOT_UUID"
     EFI_UUID="$(blkid -s UUID -o value "$EFI_PART")" \
         || fatal "Failed to read EFI_UUID"
@@ -311,9 +329,9 @@ export_disk_info() {
 # ==============================================================================
 
 preflight_disk
-confirm_disk_destruction
 select_wipe_mode
 select_efi_size
+confirm_disk_destruction
 
 wipe_disk
 create_partitions

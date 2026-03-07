@@ -17,6 +17,12 @@ get_usb_device() {
     local usb_dev=""
     usb_dev=$(df "$USB_ROOT" 2>/dev/null | awk 'NR==2 {print $1}') || true
 
+    if [[ -z "$usb_dev" ]]; then
+        log "[!] Could not detect USB installer device."
+        echo ""
+        return
+    fi
+
     # NVMe: /dev/nvme0n1p1 → /dev/nvme0n1
     if [[ "$usb_dev" =~ ^(/dev/nvme[0-9]+n[0-9]+)p[0-9]+$ ]]; then
         echo "${BASH_REMATCH[1]}"
@@ -58,7 +64,8 @@ validate_disk() {
         || fatal "Not a whole disk (partition selected?): $disk"
 
     # Must not have any mounted partitions
-    if lsblk -nr -o MOUNTPOINT "$disk" | grep -q .; then
+    # grep -q '[^[:space:]]' avoids false positives from blank lsblk output lines
+    if lsblk -nr -o MOUNTPOINT "$disk" | grep -q '[^[:space:]]'; then
         fatal "Disk or one of its partitions is mounted: $disk"
     fi
 }
@@ -76,19 +83,29 @@ present_disks() {
     echo "================================================="
     echo
 
-    while read -r name size model; do
-        local dev="/dev/$name"
+    # Parse lsblk JSON to avoid MODEL column splitting on spaces
+    while IFS= read -r line; do
+        local name size model dev marker
+
+        name=$(  echo "$line" | awk -F'"' '/\"name\"/  {print $4}')
+        size=$(  echo "$line" | awk -F'"' '/\"size\"/  {print $4}')
+        model=$( echo "$line" | awk -F'"' '/\"model\"/ {print $4}')
+
+        [[ -z "$name" ]] && continue
+
+        dev="/dev/$name"
 
         # Skip loop devices
         [[ "$dev" == /dev/loop* ]] && continue
 
-        local marker=""
-        [[ "$dev" == "$usb_device" ]] && \
+        marker=""
+        [[ -n "$usb_device" && "$dev" == "$usb_device" ]] && \
             marker="  ⚠  USB installer — do not select"
 
-        printf "  %-12s  %-8s  %s%s\n" "$dev" "$size" "$model" "$marker"
+        printf "  %-12s  %-8s  %s%s\n" "$dev" "$size" "${model:--}" "$marker"
 
-    done < <(lsblk -d -o NAME,SIZE,MODEL --noheadings)
+    done < <(lsblk -d -o NAME,SIZE,MODEL --json 2>/dev/null \
+             | awk '/\{/{p=1} p{print}')
 
     echo
 }
@@ -113,7 +130,7 @@ select_disk() {
         }
 
         # USB self-destruction warning
-        if [[ "$TARGET_DISK" == "$usb_device" ]]; then
+        if [[ -n "$usb_device" && "$TARGET_DISK" == "$usb_device" ]]; then
             echo
             echo "  ⚠  WARNING: This is the USB installer disk."
             echo "     Selecting it will destroy the installer."
@@ -140,7 +157,9 @@ if [[ -n "${TARGET_DISK:-}" ]]; then
     TARGET_DISK="${TARGET_DISK//[[:space:]]/}"
     validate_disk "$TARGET_DISK"
 
-    if [[ "$TARGET_DISK" == "$usb_device" ]]; then
+    # Profile-supplied disk is used without interactive confirmation.
+    # USB match is logged as a warning but not fatal — intentional for automation.
+    if [[ -n "$usb_device" && "$TARGET_DISK" == "$usb_device" ]]; then
         log "[!] WARNING: Profile TARGET_DISK matches USB installer device."
     fi
 

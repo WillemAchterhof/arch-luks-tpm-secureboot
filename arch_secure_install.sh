@@ -30,42 +30,7 @@ REPO_URL="https://github.com/WillemAchterhof/arch-luks-tpm-secureboot.git"
 PINNED_COMMIT="skip"  # TODO: replace with real 40-char SHA when ready
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_ROOT="$SCRIPT_DIR/repo"
-
-BUNDLE_FILE="$SCRIPT_DIR/repo.bundle"
-#!/usr/bin/env bash
-set -euo pipefail
-
-# ==============================================================================
-#  Arch Secure Installer — Single-Script Bootstrap
-# ==============================================================================
-#  Goals:
-#    • Use repo/ if present + valid
-#    • Else restore from repo.bundle + minisign signature
-#    • Else download from GitHub
-#    • Rotate: rename repo/ → repo.old/, install fresh repo/
-#    • Launch install_engine.sh from repo/
-# ==============================================================================
-
-# ------------------------------------------------------------------------------
-# Check for root
-# ------------------------------------------------------------------------------
-
-if [[ $EUID -ne 0 ]]; then
-    printf "\n[FATAL] Must be run as root.\n"
-    printf "        sudo bash arch_secure_install.sh\n\n"
-    exit 1
-fi
-
-# ------------------------------------------------------------------------------
-# Configuration
-# ------------------------------------------------------------------------------
-
-REPO_URL="https://github.com/WillemAchterhof/arch-luks-tpm-secureboot.git"
-PINNED_COMMIT="skip"  # TODO: replace with real 40-char SHA when ready
-
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_ROOT="$SCRIPT_DIR/repo"
+REPO_DIR="$SCRIPT_DIR/repo"
 
 BUNDLE_FILE="$SCRIPT_DIR/repo.bundle"
 BUNDLE_SIG="$SCRIPT_DIR/repo.bundle.minisig"
@@ -121,14 +86,14 @@ ensure_git() {
 
 verify_repo_structure() {
     # Step 1 — manifest must exist
-    local manifest="$INSTALL_ROOT/install/lib/required_files.conf"
+    local manifest="$REPO_DIR/install/lib/required_files.conf"
     [[ -f "$manifest" ]] || { echo "  missing: install/lib/required_files.conf"; return 1; }
 
     # Step 2 — check every file listed in manifest
     local ok=true
     while IFS= read -r file; do
         [[ -z "$file" || "$file" == \#* ]] && continue
-        [[ -f "$INSTALL_ROOT/$file" ]] \
+        [[ -f "$REPO_DIR/$file" ]] \
             || { echo "  missing: $file"; ok=false; }
     done < "$manifest"
 
@@ -136,16 +101,16 @@ verify_repo_structure() {
 }
 
 verify_repo_checksums() {
-    [[ -f "$INSTALL_ROOT/checksums.sha256" ]] || return 0
-    (cd "$INSTALL_ROOT" && sha256sum -c checksums.sha256 --quiet)
+    [[ -f "$REPO_DIR/checksums.sha256" ]] || return 0
+    (cd "$REPO_DIR" && sha256sum -c checksums.sha256 --quiet)
 }
 
 verify_repo_commit() {
     [[ "$PINNED_COMMIT" == "skip" ]] && return 0
-    [[ -d "$INSTALL_ROOT/.git" ]] || return 1
+    [[ -d "$REPO_DIR/.git" ]] || return 1
 
     local repo_commit
-    repo_commit="$(git -C "$INSTALL_ROOT" rev-parse HEAD 2>/dev/null)" || return 1
+    repo_commit="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)" || return 1
 
     [[ "$repo_commit" == "$PINNED_COMMIT" ]] || {
         echo "  Repo commit mismatch:"
@@ -172,14 +137,14 @@ rotate_repo() {
     [[ -d "$SCRIPT_DIR/repo.old" ]] && rm -rf "$SCRIPT_DIR/repo.old"
 
     # Rename current repo to repo.old
-    [[ -d "$INSTALL_ROOT" ]] && mv "$INSTALL_ROOT" "$SCRIPT_DIR/repo.old"
+    [[ -d "$REPO_DIR" ]] && mv "$REPO_DIR" "$SCRIPT_DIR/repo.old"
 
     # Copy fresh clone into repo/
-    rsync -a "$TEMP_DIR/repo/" "$INSTALL_ROOT/" \
+    rsync -a "$TEMP_DIR/repo/" "$REPO_DIR/" \
         || fatal "rsync failed during repo install."
 
     # Verify install_engine.sh landed correctly
-    [[ -f "$INSTALL_ROOT/install_engine.sh" ]] \
+    [[ -f "$REPO_DIR/install_engine.sh" ]] \
         || fatal "install_engine.sh missing after install."
 
     # Remove backup — all good
@@ -209,12 +174,12 @@ install_from_bundle() {
 
     TEMP_DIR="$(mktemp -d)"
 
-    git clone "$BUNDLE_FILE" "$TEMP_DIR" \
+    git clone "$BUNDLE_FILE" "$TEMP_DIR/repo" \
         || fatal "Bundle clone failed."
 
     if [[ "$PINNED_COMMIT" != "skip" ]]; then
         local cl_commit
-        cl_commit="$(git -C "$TEMP_DIR" rev-parse HEAD)"
+        cl_commit="$(git -C "$TEMP_DIR/repo" rev-parse HEAD)"
         [[ "$cl_commit" == "$PINNED_COMMIT" ]] \
             || fatal "Bundle commit mismatch:
 expected: $PINNED_COMMIT
@@ -237,16 +202,16 @@ download_repo() {
     TEMP_DIR="$(mktemp -d)"
 
     if [[ "$PINNED_COMMIT" == "skip" ]]; then
-        git clone "$REPO_URL" "$TEMP_DIR" \
+        git clone "$REPO_URL" "$TEMP_DIR/repo" \
             || fatal "git clone failed."
     else
-        git clone --no-checkout "$REPO_URL" "$TEMP_DIR" \
+        git clone --no-checkout "$REPO_URL" "$TEMP_DIR/repo" \
             || fatal "git clone failed."
 
-        git -C "$TEMP_DIR" fetch --depth 1 origin "$PINNED_COMMIT" \
+        git -C "$TEMP_DIR/repo" fetch --depth 1 origin "$PINNED_COMMIT" \
             || fatal "Pinned commit not found in remote."
 
-        git -C "$TEMP_DIR" checkout "$PINNED_COMMIT" \
+        git -C "$TEMP_DIR/repo" checkout "$PINNED_COMMIT" \
             || fatal "Could not checkout pinned commit."
     fi
 
@@ -281,7 +246,7 @@ EOF
     exit 1
 fi
 
-if [[ -d "$INSTALL_ROOT" ]]; then
+if [[ -d "$REPO_DIR" ]]; then
     msg "Existing repo found — verifying..."
 
     if verify_repo && verify_repo_commit; then
@@ -318,7 +283,7 @@ fi
 # Hand Off
 # ------------------------------------------------------------------------------
 
-find "$INSTALL_ROOT" -name "*.sh" -exec chmod 750 {} \;
+find "$REPO_DIR" -name "*.sh" -exec chmod 750 {} \;
 
 msg "Bootstrap complete — launching installer..."
-exec "$INSTALL_ROOT/install_engine.sh"
+exec "$REPO_DIR/install_engine.sh"

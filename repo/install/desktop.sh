@@ -5,7 +5,7 @@ IFS=$'\n\t'
 # ==============================================================================
 #  Arch Secure Installer — desktop.sh
 #  Post-boot desktop environment installation and configuration
-#  Supports: kde, hyprland
+#  Supports: kde, hyprland, jakoolit
 # ==============================================================================
 
 : "${USERNAME:?USERNAME not set}"
@@ -19,11 +19,21 @@ USER_HOME="/home/$USERNAME"
 # ==============================================================================
 
 install_pkgs() {
-    sudo pacman -S --noconfirm --needed "$@"
+    pacman -S --noconfirm --needed "$@"
 }
 
 install_aur_pkgs() {
-    yay -S --noconfirm --needed "$@"
+    sudo -u "$USERNAME" yay -S --noconfirm --needed "$@"
+}
+
+deploy_config() {
+    local src="$1" dst="$2"
+    if [[ -f "$src" ]]; then
+        mkdir -p "$(dirname "$dst")"
+        cp "$src" "$dst"
+    else
+        log "[!] Config not found, skipping: $src"
+    fi
 }
 
 # ==============================================================================
@@ -39,25 +49,24 @@ install_yay() {
     log "[*] Installing yay AUR helper..."
 
     # base-devel required to build AUR packages
-    sudo pacman -S --noconfirm --needed base-devel
+    pacman -S --noconfirm --needed base-devel git
 
     local build_dir
     build_dir="$(mktemp -d /tmp/yay-build-XXXXXX)"
 
-    git clone https://aur.archlinux.org/yay.git "$build_dir/yay" \
+    # makepkg refuses to run as root — clone and build as $USERNAME
+    chown "$USERNAME:$USERNAME" "$build_dir"
+
+    sudo -u "$USERNAME" git clone \
+        https://aur.archlinux.org/yay.git "$build_dir/yay" \
         || fatal "Failed to clone yay from AUR."
 
-    (cd "$build_dir/yay" && makepkg -si --noconfirm) \
+    sudo -u "$USERNAME" bash -c \
+        "cd '$build_dir/yay' && makepkg -si --noconfirm" \
         || fatal "Failed to build yay."
 
     rm -rf "$build_dir"
-    log "[*] yay installed and build directory cleaned up."
-}
-
-deploy_config() {
-    local src="$1" dst="$2"
-    mkdir -p "$(dirname "$dst")"
-    cp "$src" "$dst"
+    log "[*] yay installed."
 }
 
 # ==============================================================================
@@ -74,7 +83,7 @@ install_wayland_base() {
         xdg-user-dirs \
         xdg-utils
 
-    xdg-user-dirs-update
+    sudo -u "$USERNAME" xdg-user-dirs-update
     log "[*] Wayland base installed."
 }
 
@@ -93,7 +102,12 @@ install_audio() {
         pamixer \
         pavucontrol
 
-    systemctl --user enable pipewire pipewire-pulse wireplumber
+    # Enable user services for $USERNAME — requires linger so services
+    # start without an active login session.
+    loginctl enable-linger "$USERNAME"
+    sudo -u "$USERNAME" \
+        systemctl --user enable pipewire pipewire-pulse wireplumber
+
     log "[*] Audio stack installed."
 }
 
@@ -108,8 +122,15 @@ install_shell() {
         zsh-completions \
         zsh-autosuggestions
 
-    sudo chsh -s /usr/bin/zsh "$USERNAME"
-    log "[*] zsh set as default shell."
+    # Only change shell if not already set to zsh
+    local current_shell
+    current_shell="$(getent passwd "$USERNAME" | cut -d: -f7)"
+    if [[ "$current_shell" != "/usr/bin/zsh" ]]; then
+        chsh -s /usr/bin/zsh "$USERNAME"
+        log "[*] zsh set as default shell."
+    else
+        log "[*] zsh already set as default shell — skipping."
+    fi
 }
 
 # ==============================================================================
@@ -194,23 +215,23 @@ install_filemanager() {
 
 install_network_tools() {
     log "[*] Installing network tools..."
-    install_pkgs \
-        network-manager-applet
+    install_pkgs network-manager-applet
 
-    install_aur_pkgs \
-        networkmanager-dmenu-git
+    install_aur_pkgs networkmanager-dmenu-git
 
     log "[*] Network tools installed."
 }
 
 # ==============================================================================
 # LAYER 9 — EXTRA PACKAGES (from profile)
+# EXTRA_PACKAGES must be a space-separated list of package names.
 # ==============================================================================
 
 install_extra_packages() {
     [[ -z "${EXTRA_PACKAGES:-}" ]] && return 0
 
     log "[*] Installing extra packages..."
+    # Word splitting is intentional here — EXTRA_PACKAGES is space-separated
     # shellcheck disable=SC2086
     install_pkgs $EXTRA_PACKAGES
     log "[*] Extra packages installed."
@@ -250,8 +271,9 @@ deploy_alacritty_config() {
     local cfg_dir="$USER_HOME/.config/alacritty"
     mkdir -p "$cfg_dir"
 
-    [[ -f "$CONFIGS_DIR/alacritty/alacritty.toml" ]] \
-        && deploy_config "$CONFIGS_DIR/alacritty/alacritty.toml" "$cfg_dir/alacritty.toml"
+    deploy_config \
+        "$CONFIGS_DIR/alacritty/alacritty.toml" \
+        "$cfg_dir/alacritty.toml"
 
     chown -R "$USERNAME:$USERNAME" "$cfg_dir"
     log "[*] Alacritty config deployed."
@@ -264,7 +286,7 @@ deploy_alacritty_config() {
 configure_user_groups() {
     # libvirt — only if package is installed
     if pacman -Q libvirt &>/dev/null; then
-        sudo usermod -aG libvirt "$USERNAME"
+        usermod -aG libvirt "$USERNAME"
         log "[*] Added $USERNAME to libvirt group."
     fi
 }
@@ -282,7 +304,7 @@ install_kde() {
         sddm \
         xdg-desktop-portal-kde
 
-    sudo systemctl enable sddm
+    systemctl enable sddm
     log "[*] SDDM enabled."
 
     configure_user_groups
@@ -328,7 +350,7 @@ install_hyprland() {
 
     # Display manager
     install_pkgs sddm
-    sudo systemctl enable sddm
+    systemctl enable sddm
     log "[*] SDDM enabled."
 
     configure_user_groups
@@ -347,35 +369,17 @@ deploy_hyprland_configs() {
     mkdir -p "$hypr_cfg/themes" "$waybar_cfg" "$rofi_cfg"
 
     # Hyprland
-    [[ -f "$CONFIGS_DIR/hyprland/hyprland.conf" ]] \
-        && deploy_config "$CONFIGS_DIR/hyprland/hyprland.conf" \
-                         "$hypr_cfg/hyprland.conf"
-
-    [[ -f "$CONFIGS_DIR/hyprland/hyprlock.conf" ]] \
-        && deploy_config "$CONFIGS_DIR/hyprland/hyprlock.conf" \
-                         "$hypr_cfg/hyprlock.conf"
-
-    [[ -f "$CONFIGS_DIR/hyprland/themes/tokyonight.conf" ]] \
-        && deploy_config "$CONFIGS_DIR/hyprland/themes/tokyonight.conf" \
-                         "$hypr_cfg/themes/tokyonight.conf"
+    deploy_config "$CONFIGS_DIR/hyprland/hyprland.conf"           "$hypr_cfg/hyprland.conf"
+    deploy_config "$CONFIGS_DIR/hyprland/hyprlock.conf"           "$hypr_cfg/hyprlock.conf"
+    deploy_config "$CONFIGS_DIR/hyprland/themes/tokyonight.conf"  "$hypr_cfg/themes/tokyonight.conf"
 
     # Waybar
-    [[ -f "$CONFIGS_DIR/waybar/config.jsonc" ]] \
-        && deploy_config "$CONFIGS_DIR/waybar/config.jsonc" \
-                         "$waybar_cfg/config.jsonc"
-
-    [[ -f "$CONFIGS_DIR/waybar/style.css" ]] \
-        && deploy_config "$CONFIGS_DIR/waybar/style.css" \
-                         "$waybar_cfg/style.css"
+    deploy_config "$CONFIGS_DIR/waybar/config.jsonc"              "$waybar_cfg/config.jsonc"
+    deploy_config "$CONFIGS_DIR/waybar/style.css"                 "$waybar_cfg/style.css"
 
     # Rofi
-    [[ -f "$CONFIGS_DIR/rofi/config.rasi" ]] \
-        && deploy_config "$CONFIGS_DIR/rofi/config.rasi" \
-                         "$rofi_cfg/config.rasi"
-
-    [[ -f "$CONFIGS_DIR/rofi/tokyonight.rasi" ]] \
-        && deploy_config "$CONFIGS_DIR/rofi/tokyonight.rasi" \
-                         "$rofi_cfg/tokyonight.rasi"
+    deploy_config "$CONFIGS_DIR/rofi/config.rasi"                 "$rofi_cfg/config.rasi"
+    deploy_config "$CONFIGS_DIR/rofi/tokyonight.rasi"             "$rofi_cfg/tokyonight.rasi"
 
     # Fix ownership
     chown -R "$USERNAME:$USERNAME" \
@@ -399,15 +403,18 @@ install_jakoolit() {
     log "  Any overlapping packages will be safely reinstalled."
     log ""
 
-    sudo pacman -S --noconfirm --needed git
+    pacman -S --noconfirm --needed git
 
     local build_dir
     build_dir="$(mktemp -d /tmp/jakoolit-XXXXXX)"
 
-    git clone --depth 1 https://github.com/JaKooLit/Arch-Hyprland.git         "$build_dir" || fatal "Failed to clone JaKooLit Arch-Hyprland installer."
+    git clone --depth 1 \
+        https://github.com/JaKooLit/Arch-Hyprland.git "$build_dir" \
+        || fatal "Failed to clone JaKooLit Arch-Hyprland installer."
 
-    cd "$build_dir"
-    bash install.sh
+    # Run in subshell to avoid changing working directory of install_engine.sh
+    (cd "$build_dir" && bash install.sh) \
+        || fatal "JaKooLit installer failed."
 
     rm -rf "$build_dir"
     log "[*] JaKooLit installer complete."
@@ -420,14 +427,11 @@ install_jakoolit() {
 cleanup() {
     log "[*] Running post-install cleanup..."
 
-    # Remove any leftover yay build dirs in /tmp
     rm -rf /tmp/yay-build-* 2>/dev/null || true
 
-    # Remove yay package cache
     yay -Sc --noconfirm 2>/dev/null || true
 
-    # Remove pacman package cache
-    sudo pacman -Sc --noconfirm
+    pacman -Sc --noconfirm
 
     log "[*] Cleanup complete."
 }
@@ -443,11 +447,11 @@ log "    - JaKooLit (Arch-Hyprland)    https://github.com/JaKooLit/Arch-Hyprland
 log ""
 
 # Ensure multilib and fresh db
-sudo sed -i \
+sed -i \
     -e 's/^#Color/Color/' \
     -e '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' \
     /etc/pacman.conf
-sudo pacman -Sy --noconfirm
+pacman -Sy --noconfirm
 
 # Shared layers — installed for all desktop environments
 install_yay
