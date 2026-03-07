@@ -51,6 +51,11 @@ preflight_checks() {
 mount_efivarfs() {
     if ! mountpoint -q "$MNT/sys/firmware/efi/efivars"; then
         log "[*] Mounting efivarfs inside chroot..."
+
+        # Create mountpoint if it doesn't exist — arch-chroot does not create it
+        mkdir -p "$MNT/sys/firmware/efi/efivars" \
+            || fatal "Failed to create efivarfs mountpoint."
+
         mount --bind /sys/firmware/efi/efivars \
             "$MNT/sys/firmware/efi/efivars" \
             || fatal "Failed to mount efivarfs inside chroot."

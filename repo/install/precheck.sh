@@ -58,7 +58,6 @@ check_commands() {
         curl
         git
         efibootmgr
-        sbctl
     )
 
     for cmd in "${required[@]}"; do
