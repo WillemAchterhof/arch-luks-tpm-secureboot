@@ -20,7 +20,11 @@ _VALID_STATES=(
 )
 
 _is_valid_state() {
-    local s="$1"
+    local s="${1:-}"
+
+    # Reject empty string — guards against empty state file or unset STATE
+    [[ -n "$s" ]] || return 1
+
     for v in "${_VALID_STATES[@]}"; do
         [[ "$v" == "$s" ]] && return 0
     done
@@ -31,8 +35,11 @@ load_state() {
     if [[ -f "$_STATE_FILE" ]]; then
         STATE="$(<"$_STATE_FILE")"
 
-        if ! _is_valid_state "$STATE"; then
-            fatal "Invalid state detected: $STATE"
+        # Trim whitespace — guards against trailing newlines or spaces
+        STATE="${STATE//[[:space:]]/}"
+
+        if [[ -z "$STATE" ]] || ! _is_valid_state "$STATE"; then
+            fatal "Invalid or empty state detected: '${STATE}'"
         fi
     else
         STATE="init"
@@ -40,10 +47,9 @@ load_state() {
 }
 
 save_state() {
-    _is_valid_state "$STATE" || fatal "Refusing to save invalid state: $STATE"
+    _is_valid_state "$STATE" || fatal "Refusing to save invalid state: ${STATE:-<empty>}"
 
     local tmp="$_STATE_FILE.tmp"
-
     printf '%s\n' "$STATE" > "$tmp"
     mv "$tmp" "$_STATE_FILE"
 }
