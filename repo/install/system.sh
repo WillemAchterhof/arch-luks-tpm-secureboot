@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/usr/bin/env bas#!/usr/bin/env bash
 set -euo pipefail
 IFS=$'\n\t'
 
