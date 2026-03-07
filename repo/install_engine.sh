@@ -36,13 +36,6 @@ detect_environment() {
 
 detect_environment
 
-# Automatic transition after reboot
-if [[ "$STATE" == "preboot_done" && "$INSTALL_ENV" == "INSTALLED" ]]; then
-    log "[*] Detected first boot after pre-install — transitioning to postboot."
-    STATE="postboot"
-    save_state
-fi
-
 
 # ==============================================================================
 # PROFILE PERSISTENCE
@@ -195,50 +188,96 @@ confirm_secureboot_enroll() {
 
 
 # ==============================================================================
-# PRE-REBOOT: COPY INSTALLER TO INSTALLED SYSTEM
+# PRE-REBOOT: SAVE WIFI + CURL POST BOOTSTRAP + AUTOSTART
 # ==============================================================================
 
-copy_installer_to_system() {
+prepare_postboot() {
     local mnt="/mnt"
-    local dst="$mnt/home/${USERNAME}/installer"
+    local home="$mnt/home/${USERNAME}"
 
-    log "[*] Copying installer to installed system at ~/installer ..."
+    log "[*] Preparing post-boot bootstrap..."
 
-    mkdir -p "$dst"
+    # -- WiFi credentials --
+    # Save the active WiFi connection so arch_secure_post.sh can reconnect
+    local wifi_creds="$home/.wifi_creds"
+    local active_ssid active_pass
 
-    # Copy arch_secure_install.sh — sits one level above REPO_ROOT
-    local bootstrap
-    bootstrap="$(dirname "$REPO_ROOT")/arch_secure_install.sh"
-    if [[ -f "$bootstrap" ]]; then
-        cp "$bootstrap" "$dst/arch_secure_install.sh"
-        chmod 750 "$dst/arch_secure_install.sh"
-        log "[*] Copied arch_secure_install.sh"
+    active_ssid=$(nmcli -t -f active,ssid dev wifi \
+        | awk -F: '/^yes:/{print $2}' | head -1) || true
+
+    if [[ -n "$active_ssid" ]]; then
+        # Extract password from NetworkManager connection profile
+        active_pass=$(nmcli -s -g 802-11-wireless-security.psk \
+            connection show "$active_ssid" 2>/dev/null) || true
+
+        {
+            echo "SSID=$active_ssid"
+            echo "PASSPHRASE=$active_pass"
+        } > "$wifi_creds"
+        chmod 600 "$wifi_creds"
+        log "[*] WiFi credentials saved for: $active_ssid"
     else
-        log "[!] arch_secure_install.sh not found at: $bootstrap — skipping"
+        log "[!] No active WiFi connection detected — skipping WiFi save."
     fi
 
-    # Copy repo/
-    if [[ -d "$REPO_ROOT" ]]; then
-        cp -a "$REPO_ROOT" "$dst/repo"
-        log "[*] Copied repo/"
-    else
-        log "[!] repo/ not found — skipping"
-    fi
+    # -- curl arch_secure_post.sh --
+    local raw_url="https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/arch_secure_post.sh"
+    local post_script="$home/arch_secure_post.sh"
 
-    # Copy output/ (state, profile, secureboot keys, luks key)
-    local output_src
-    output_src="$(dirname "$REPO_ROOT")/output"
-    if [[ -d "$output_src" ]]; then
-        cp -a "$output_src" "$dst/output"
-        log "[*] Copied output/"
-    else
-        log "[!] output/ not found at: $output_src — skipping"
-    fi
+    log "[*] Downloading arch_secure_post.sh..."
+    curl -fsSL "$raw_url" -o "$post_script" \
+        || fatal "Failed to download arch_secure_post.sh from GitHub."
+    chmod 750 "$post_script"
+    log "[*] arch_secure_post.sh saved to ~/arch_secure_post.sh"
 
-    # Fix ownership so the user owns everything
-    arch-chroot "$mnt" chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}/installer"
+    # -- autostart in .bash_profile --
+    local bash_profile="$home/.bash_profile"
+    cat >> "$bash_profile" << 'EOF'
 
-    log "[*] Installer copy complete: ~/installer/"
+# ARCH_POSTBOOT_START
+if [[ -f "$HOME/arch_secure_post.sh" ]]; then
+    sudo bash "$HOME/arch_secure_post.sh"
+fi
+# ARCH_POSTBOOT_END
+EOF
+    log "[*] Autostart added to .bash_profile"
+
+    # -- generate post_default.conf --
+    # Bakes current session vars into a profile so post_install_engine.sh
+    # can run fully automatically without prompting on first boot.
+    local post_conf="$home/post_default.conf"
+
+    cat > "$post_conf" << EOF
+# ==============================================================================
+#  Arch Secure Installer — Post-Install Profile
+#  Generated automatically at install time: $(date -u '+%Y-%m-%d %H:%M UTC')
+# ==============================================================================
+
+# User
+USERNAME="${USERNAME:-}"
+USER_SHELL="${USER_SHELL:-/bin/bash}"
+
+# Desktop
+DESKTOP_ENV="${DESKTOP_ENV:-}"
+EXTRA_PACKAGES="${EXTRA_PACKAGES:-}"
+
+# TPM — PCR 0 (firmware) + 7 (secure boot state) + 11 (UKI)
+TPM_PCRS="0+7+11"
+
+# WiFi — saved separately in .wifi_creds, not here
+EOF
+    chmod 600 "$post_conf"
+    log "[*] post_default.conf generated."
+
+    # Fix ownership
+    arch-chroot "$mnt" chown "${USERNAME}:${USERNAME}" \
+        "/home/${USERNAME}/arch_secure_post.sh" \
+        "/home/${USERNAME}/.bash_profile" \
+        "/home/${USERNAME}/post_default.conf"
+    [[ -f "$wifi_creds" ]] && \
+        arch-chroot "$mnt" chown "${USERNAME}:${USERNAME}" "/home/${USERNAME}/.wifi_creds"
+
+    log "[*] Post-boot preparation complete."
 }
 
 
@@ -331,9 +370,8 @@ run_installation() {
             STATE="preboot_done"
             save_state
 
-            # Copy installer (script + repo + output) to installed system
-            # so postboot can resume without needing the USB mounted
-            copy_installer_to_system
+            # Save WiFi, curl post bootstrap, add autostart
+            prepare_postboot
 
             clear
             echo "================================================="
@@ -395,39 +433,6 @@ run_installation() {
             exit 0
             ;;
 
-        postboot)
-            [[ "$INSTALL_ENV" == "INSTALLED" ]] \
-                || fatal "postboot state only allowed after reboot into installed system"
-
-            batch "$INSTALL_ROOT/tpm.sh"
-            batch "$INSTALL_ROOT/desktop.sh"
-
-            STATE="done"
-            save_state
-            ;;
-
-        done)
-            # Remove postboot autostart from .bash_profile
-            bash_profile="/home/${USERNAME:-}/.bash_profile"
-            if [[ -n "${USERNAME:-}" && -f "$bash_profile" ]]; then
-                sed -i '/# ARCH_POSTBOOT_START/,/# ARCH_POSTBOOT_END/d' "$bash_profile"
-                log "[*] Postboot autostart removed from .bash_profile"
-            fi
-
-            # Remove installer directory from home
-            installer_dir="/home/${USERNAME:-}/installer"
-            if [[ -d "$installer_dir" ]]; then
-                rm -rf "$installer_dir"
-                log "[*] ~/installer removed"
-            fi
-
-            clear
-            echo "================================================="
-            echo "          Installation Fully Complete"
-            echo "================================================="
-            log "=== Installation fully complete ==="
-            ;;
-
         *)
             fatal "Unknown state: $STATE"
             ;;
@@ -439,6 +444,6 @@ run_installation() {
 # MAIN LOOP
 # ==============================================================================
 
-while [[ "$STATE" != "done" ]]; do
+while [[ "$STATE" != "preboot_done" ]]; do
     run_installation
 done

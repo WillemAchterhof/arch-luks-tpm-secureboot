@@ -1,0 +1,209 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# ==============================================================================
+#  Arch Secure Installer — Post-Install Engine
+# ==============================================================================
+#  Runs on first boot after pre-boot install.
+#  Handles: TPM enrollment, desktop setup.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Parse arguments
+# ------------------------------------------------------------------------------
+
+STATE_DIR=""
+LOG_DIR=""
+PROFILE_FILE=""
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --state-dir) STATE_DIR="$2";   shift 2 ;;
+        --log-dir)   LOG_DIR="$2";     shift 2 ;;
+        --profile)   PROFILE_FILE="$2"; shift 2 ;;
+        *) echo "[FATAL] Unknown argument: $1"; exit 1 ;;
+    esac
+done
+
+[[ -n "$STATE_DIR" ]] || { echo "[FATAL] --state-dir required"; exit 1; }
+[[ -n "$LOG_DIR"   ]] || { echo "[FATAL] --log-dir required";   exit 1; }
+
+# ------------------------------------------------------------------------------
+# Bootstrap lib from repo
+# ------------------------------------------------------------------------------
+
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+export STATE_FOLDER="$STATE_DIR"
+export LOG_FOLDER="$LOG_DIR"
+export USB_ROOT="$REPO_ROOT"
+
+mkdir -p "$STATE_FOLDER" "$LOG_FOLDER"
+
+source "$REPO_ROOT/install/lib/bootstrap.sh"
+
+load_state
+
+INSTALL_MODE="${INSTALL_MODE:-}"
+INSTALL_PROFILE="${INSTALL_PROFILE:-}"
+
+# Active profile path for save/resume
+ACTIVE_PROFILE="$STATE_FOLDER/active.sh"
+[[ -f "$ACTIVE_PROFILE" ]] && source "$ACTIVE_PROFILE"
+
+# ==============================================================================
+# ENVIRONMENT CHECK
+# ==============================================================================
+
+if [[ -d /run/archiso ]]; then
+    fatal "post_install_engine.sh must not run in the live ISO environment."
+fi
+
+log "[*] Post-install engine started. State: $STATE"
+
+# ==============================================================================
+# PROFILE LOADING
+# ==============================================================================
+
+load_profile() {
+    if [[ -n "$PROFILE_FILE" && -f "$PROFILE_FILE" ]]; then
+        log "[*] Loading post profile: $PROFILE_FILE"
+        source "$PROFILE_FILE"
+        INSTALL_MODE="profile"
+        INSTALL_PROFILE="post_default"
+
+        clear
+        echo "================================================="
+        echo "        Arch Secure — Post-Boot Setup"
+        echo "================================================="
+        echo
+        echo "  Profile loaded — running fully automatic."
+        echo
+        printf "  Username:    %s\n" "${USERNAME:-<unset>}"
+        printf "  Shell:       %s\n" "${USER_SHELL:-<unset>}"
+        printf "  Desktop:     %s\n" "${DESKTOP_ENV:-<unset>}"
+        printf "  Packages:    %s\n" "${EXTRA_PACKAGES:-<none>}"
+        printf "  TPM PCRs:    %s\n" "${TPM_PCRS:-0+7+11}"
+        echo
+        echo "  Starting in 5 seconds... (Ctrl+C to abort)"
+        sleep 5
+    else
+        select_mode
+    fi
+}
+
+save_profile() {
+    declare -p \
+        USERNAME \
+        USER_SHELL \
+        DESKTOP_ENV \
+        EXTRA_PACKAGES \
+        TPM_PCRS \
+        INSTALL_MODE \
+        INSTALL_PROFILE \
+        > "$ACTIVE_PROFILE" 2>/dev/null || true
+    log "[*] Profile saved."
+}
+
+# ==============================================================================
+# INTERACTIVE MODE SELECTION
+# ==============================================================================
+
+select_mode() {
+    while true; do
+        clear
+        echo "================================================="
+        echo "        Arch Secure — Post-Boot Setup"
+        echo "================================================="
+        echo
+        echo "  Select mode:"
+        echo "    1) Full Interactive Setup"
+        echo "    2) Load Default Profile (Willem)"
+        echo "    3) Abort"
+        echo
+        read -rp "  Choice: " choice
+
+        case "${choice:-}" in
+            1)
+                INSTALL_MODE="interactive"
+                INSTALL_PROFILE="interactive"
+                return
+                ;;
+            2)
+                INSTALL_MODE="profile"
+                source "$PROFILES_DIR/default.conf"
+                INSTALL_PROFILE="willem"
+                return
+                ;;
+            3)
+                fatal "User aborted."
+                ;;
+            *)
+                log "[!] Invalid selection — try again."
+                ;;
+        esac
+    done
+}
+
+# ==============================================================================
+# STATE MACHINE
+# ==============================================================================
+
+run_postinstall() {
+
+    case "$STATE" in
+
+        postboot)
+            load_profile
+            save_profile
+
+            log "[*] Running TPM enrollment..."
+            batch "$INSTALL_ROOT/tpm.sh"
+
+            log "[*] Running desktop setup..."
+            batch "$INSTALL_ROOT/desktop.sh"
+
+            STATE="done"
+            save_state
+            ;;
+
+        done)
+            # Remove postboot autostart from .bash_profile
+            bash_profile="/home/${USERNAME:-}/.bash_profile"
+            if [[ -n "${USERNAME:-}" && -f "$bash_profile" ]]; then
+                sed -i '/# ARCH_POSTBOOT_START/,/# ARCH_POSTBOOT_END/d' "$bash_profile"
+                log "[*] Postboot autostart removed from .bash_profile"
+            fi
+
+            # Remove arch_secure_post.sh from home
+            post_script="/home/${USERNAME:-}/arch_secure_post.sh"
+            [[ -f "$post_script" ]] && rm -f "$post_script"
+
+            # Remove post_default.conf from home
+            post_conf="/home/${USERNAME:-}/post_default.conf"
+            [[ -f "$post_conf" ]] && rm -f "$post_conf"
+
+            # Remove ~/installer/
+            installer_dir="/home/${USERNAME:-}/installer"
+            [[ -d "$installer_dir" ]] && rm -rf "$installer_dir"
+
+            clear
+            echo "================================================="
+            echo "          Installation Fully Complete"
+            echo "================================================="
+            log "=== Installation fully complete ==="
+            ;;
+
+        *)
+            fatal "Unexpected state in post_install_engine: $STATE"
+            ;;
+    esac
+}
+
+# ==============================================================================
+# MAIN LOOP
+# ==============================================================================
+
+while [[ "$STATE" != "done" ]]; do
+    run_postinstall
+done
