@@ -162,8 +162,8 @@ configure_user() {
 
     arch-chroot "$MNT" useradd \
         -m \
-        -G "$groups" \
-        -s "$USER_SHELL" \
+        -G "wheel" \
+        -s "/bin/bash" \
         "$USERNAME"
 
     echo
