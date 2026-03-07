@@ -195,6 +195,54 @@ confirm_secureboot_enroll() {
 
 
 # ==============================================================================
+# PRE-REBOOT: COPY INSTALLER TO INSTALLED SYSTEM
+# ==============================================================================
+
+copy_installer_to_system() {
+    local mnt="/mnt"
+    local dst="$mnt/home/${USERNAME}/installer"
+
+    log "[*] Copying installer to installed system at ~/installer ..."
+
+    mkdir -p "$dst"
+
+    # Copy arch_secure_install.sh — sits one level above REPO_ROOT
+    local bootstrap
+    bootstrap="$(dirname "$REPO_ROOT")/arch_secure_install.sh"
+    if [[ -f "$bootstrap" ]]; then
+        cp "$bootstrap" "$dst/arch_secure_install.sh"
+        chmod 750 "$dst/arch_secure_install.sh"
+        log "[*] Copied arch_secure_install.sh"
+    else
+        log "[!] arch_secure_install.sh not found at: $bootstrap — skipping"
+    fi
+
+    # Copy repo/
+    if [[ -d "$REPO_ROOT" ]]; then
+        cp -a "$REPO_ROOT" "$dst/repo"
+        log "[*] Copied repo/"
+    else
+        log "[!] repo/ not found — skipping"
+    fi
+
+    # Copy output/ (state, profile, secureboot keys, luks key)
+    local output_src
+    output_src="$(dirname "$REPO_ROOT")/output"
+    if [[ -d "$output_src" ]]; then
+        cp -a "$output_src" "$dst/output"
+        log "[*] Copied output/"
+    else
+        log "[!] output/ not found at: $output_src — skipping"
+    fi
+
+    # Fix ownership so the user owns everything
+    arch-chroot "$mnt" chown -R "${USERNAME}:${USERNAME}" "/home/${USERNAME}/installer"
+
+    log "[*] Installer copy complete: ~/installer/"
+}
+
+
+# ==============================================================================
 # STATE MACHINE
 # ==============================================================================
 
@@ -283,6 +331,10 @@ run_installation() {
             STATE="preboot_done"
             save_state
 
+            # Copy installer (script + repo + output) to installed system
+            # so postboot can resume without needing the USB mounted
+            copy_installer_to_system
+
             clear
             echo "================================================="
             echo "        Pre-Boot Installation Complete"
@@ -362,11 +414,11 @@ run_installation() {
                 log "[*] Postboot autostart removed from .bash_profile"
             fi
 
-            # Remove installer script from Documents
-            installer="/home/${USERNAME:-}/Documents/arch_secure_install.sh"
-            if [[ -f "$installer" ]]; then
-                rm -f "$installer"
-                log "[*] arch_secure_install.sh removed from ~/Documents"
+            # Remove installer directory from home
+            installer_dir="/home/${USERNAME:-}/installer"
+            if [[ -d "$installer_dir" ]]; then
+                rm -rf "$installer_dir"
+                log "[*] ~/installer removed"
             fi
 
             clear

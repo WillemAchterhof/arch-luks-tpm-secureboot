@@ -85,11 +85,9 @@ ensure_git() {
 # ------------------------------------------------------------------------------
 
 verify_repo_structure() {
-    # Step 1 — manifest must exist
     local manifest="$REPO_DIR/install/lib/required_files.conf"
     [[ -f "$manifest" ]] || { echo "  missing: install/lib/required_files.conf"; return 1; }
 
-    # Step 2 — check every file listed in manifest
     local ok=true
     while IFS= read -r file; do
         [[ -z "$file" || "$file" == \#* ]] && continue
@@ -140,7 +138,9 @@ rotate_repo() {
     [[ -d "$REPO_DIR" ]] && mv "$REPO_DIR" "$SCRIPT_DIR/repo.old"
 
     # Copy fresh clone into repo/
-    cp -a "$TEMP_DIR/repo/." "$REPO_DIR/"
+    # Using cp -a instead of rsync — rsync is not available on the Arch ISO
+    cp -a "$TEMP_DIR/repo/." "$REPO_DIR/" \
+        || fatal "cp failed during repo install."
 
     # Verify install_engine.sh landed correctly
     [[ -f "$REPO_DIR/install_engine.sh" ]] \
@@ -218,6 +218,28 @@ download_repo() {
 }
 
 # ------------------------------------------------------------------------------
+# Restore Output Folder (postboot resume)
+# ------------------------------------------------------------------------------
+
+# On first boot after install, the USB is not mounted.
+# The installer was copied to ~/installer/ before reboot.
+# If we're running from ~/installer/, restore the output/ folder
+# so STATE_FOLDER and PROFILE_FOLDER resolve correctly.
+
+restore_output_if_needed() {
+    local saved_output="$SCRIPT_DIR/output"
+    local repo_output="$REPO_DIR/output"
+
+    # Only restore if output/ is next to this script but not next to repo/
+    # This handles the postboot case where everything lives in ~/installer/
+    if [[ -d "$saved_output" && ! -d "$repo_output" ]]; then
+        msg "Restoring output/ from installer directory..."
+        cp -a "$saved_output" "$repo_output"
+        msg "output/ restored."
+    fi
+}
+
+# ------------------------------------------------------------------------------
 # Main Flow
 # ------------------------------------------------------------------------------
 
@@ -277,6 +299,9 @@ else
     verify_repo        || fatal "Repo invalid after install."
     verify_repo_commit || fatal "Commit mismatch after install."
 fi
+
+# Restore output/ next to repo/ if needed (postboot resume from ~/installer/)
+restore_output_if_needed
 
 # ------------------------------------------------------------------------------
 # Hand Off
