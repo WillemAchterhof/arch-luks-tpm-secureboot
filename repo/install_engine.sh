@@ -198,37 +198,48 @@ prepare_postboot() {
     log "[*] Preparing post-boot bootstrap..."
 
     # -- WiFi credentials --
-    # Save the active WiFi connection so arch_secure_post.sh can reconnect
+    # Live ISO uses iwd (iwctl), not NetworkManager.
+    # Read active SSID and passphrase directly from iwd profile files.
     local wifi_creds="$home/.wifi_creds"
-    local active_ssid active_pass
+    local active_ssid="" active_pass="" iwd_adapter iwd_psk_file
 
-    active_ssid=$(nmcli -t -f active,ssid dev wifi \
-        | awk -F: '/^yes:/{print $2}' | head -1) || true
+    # Detect active adapter (first station in connected state)
+    iwd_adapter=$(iwctl station list 2>/dev/null \
+        | awk '/connected/{print $1}' | head -1) || true
+
+    if [[ -n "$iwd_adapter" ]]; then
+        active_ssid=$(iwctl station "$iwd_adapter" show 2>/dev/null \
+            | awk '/Connected network/{print $NF}') || true
+    fi
 
     if [[ -n "$active_ssid" ]]; then
-        # Extract password from NetworkManager connection profile
-        active_pass=$(nmcli -s -g 802-11-wireless-security.psk \
-            connection show "$active_ssid" 2>/dev/null) || true
+        # iwd stores PSK profiles as /var/lib/iwd/<SSID>.psk
+        iwd_psk_file="/var/lib/iwd/${active_ssid}.psk"
+        if [[ -f "$iwd_psk_file" ]]; then
+            active_pass=$(grep '^Passphrase=' "$iwd_psk_file" \
+                | cut -d= -f2-) || true
+        fi
 
         {
             echo "SSID=$active_ssid"
-            echo "PASSPHRASE=$active_pass"
+            echo "PASSPHRASE=${active_pass:-}"
         } > "$wifi_creds"
         chmod 600 "$wifi_creds"
         log "[*] WiFi credentials saved for: $active_ssid"
     else
-        log "[!] No active WiFi connection detected — skipping WiFi save."
+        log "[!] No active iwd WiFi connection detected — skipping WiFi save."
     fi
 
-    # -- curl arch_secure_post.sh --
-    local raw_url="https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/arch_secure_post.sh"
+    # -- copy arch_secure_post.sh from repo --
+    # Already in the cloned repo — no curl needed
     local post_script="$home/arch_secure_post.sh"
 
-    log "[*] Downloading arch_secure_post.sh..."
-    curl -fsSL "$raw_url" -o "$post_script" \
-        || fatal "Failed to download arch_secure_post.sh from GitHub."
+    [[ -f "$REPO_ROOT/arch_secure_post.sh" ]] \
+        || fatal "arch_secure_post.sh not found in repo — cannot prepare postboot."
+
+    cp "$REPO_ROOT/arch_secure_post.sh" "$post_script"
     chmod 750 "$post_script"
-    log "[*] arch_secure_post.sh saved to ~/arch_secure_post.sh"
+    log "[*] arch_secure_post.sh copied to ~/arch_secure_post.sh"
 
     # -- autostart in .bash_profile --
     local bash_profile="$home/.bash_profile"

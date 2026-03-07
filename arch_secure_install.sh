@@ -201,16 +201,16 @@ download_repo() {
     TEMP_DIR="$(mktemp -d)"
 
     if [[ "$PINNED_COMMIT" == "skip" ]]; then
-        git clone "$REPO_URL" "$TEMP_DIR/repo" \
+        git clone "$REPO_URL" "$TEMP_DIR" \
             || fatal "git clone failed."
     else
-        git clone --no-checkout "$REPO_URL" "$TEMP_DIR/repo" \
+        git clone --no-checkout "$REPO_URL" "$TEMP_DIR" \
             || fatal "git clone failed."
 
-        git -C "$TEMP_DIR/repo" fetch --depth 1 origin "$PINNED_COMMIT" \
+        git -C "$TEMP_DIR" fetch --depth 1 origin "$PINNED_COMMIT" \
             || fatal "Pinned commit not found in remote."
 
-        git -C "$TEMP_DIR/repo" checkout "$PINNED_COMMIT" \
+        git -C "$TEMP_DIR" checkout "$PINNED_COMMIT" \
             || fatal "Could not checkout pinned commit."
     fi
 
