@@ -17,6 +17,10 @@ load_state
 ACTIVE_PROFILE="$PROFILE_FOLDER/active.sh"
 [[ -f "$ACTIVE_PROFILE" ]] && source "$ACTIVE_PROFILE"
 
+# Initialise optional profile variables to avoid unbound variable errors
+INSTALL_MODE="${INSTALL_MODE:-}"
+INSTALL_PROFILE="${INSTALL_PROFILE:-}"
+
 # ==============================================================================
 # ENVIRONMENT DETECTION
 # ==============================================================================
@@ -108,7 +112,7 @@ render_profile_summary() {
 select_mode() {
     while true; do
         clear
-	echo "================================================="
+        echo "================================================="
         echo "            Arch Secure Installer"
         echo "================================================="
         echo
@@ -117,7 +121,7 @@ select_mode() {
         echo "    - Ataraxxia     https://github.com/Ataraxxia/secure-arch"
         echo
         echo "================================================="
-        echo 
+        echo
         echo "  Select mode:"
         echo "    1) Full Interactive Setup"
         echo "    2) Load Default Profile (Willem)"
@@ -241,9 +245,9 @@ run_installation() {
 
         summary)
             render_profile_summary
-            read -r input || true
+            read -r summary_input || true
 
-            case "${input:-}" in
+            case "${summary_input:-}" in
                 E|e)
                     batch "$INSTALL_ROOT/edit_profile.sh"
                     save_profile
@@ -304,10 +308,9 @@ run_installation() {
             echo "  if TPM enrollment fails."
             echo
 
-             confirm
             while true; do
-                read -rp "  Type YES to confirm you saved the key: " confirm
-                [[ "$confirm" == "YES" ]] && break
+                read -rp "  Type YES to confirm you saved the key: " key_saved
+                [[ "$key_saved" == "YES" ]] && break
                 echo "  [!] Please type YES to continue."
             done
 
@@ -353,9 +356,9 @@ run_installation() {
 
         done)
             # Remove postboot autostart from .bash_profile
-            local profile="/home/${USERNAME:-}/.bash_profile"
-            if [[ -n "${USERNAME:-}" && -f "$profile" ]]; then
-                sed -i '/# ARCH_POSTBOOT_START/,/# ARCH_POSTBOOT_END/d' "$profile"
+            bash_profile="/home/${USERNAME:-}/.bash_profile"
+            if [[ -n "${USERNAME:-}" && -f "$bash_profile" ]]; then
+                sed -i '/# ARCH_POSTBOOT_START/,/# ARCH_POSTBOOT_END/d' "$bash_profile"
                 log "[*] Postboot autostart removed from .bash_profile"
             fi
 
