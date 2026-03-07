@@ -85,11 +85,9 @@ ensure_git() {
 # ------------------------------------------------------------------------------
 
 verify_repo_structure() {
-    # Step 1 — manifest must exist
     local manifest="$REPO_DIR/install/lib/required_files.conf"
     [[ -f "$manifest" ]] || { echo "  missing: install/lib/required_files.conf"; return 1; }
 
-    # Step 2 — check every file listed in manifest
     local ok=true
     while IFS= read -r file; do
         [[ -z "$file" || "$file" == \#* ]] && continue
@@ -140,8 +138,9 @@ rotate_repo() {
     [[ -d "$REPO_DIR" ]] && mv "$REPO_DIR" "$SCRIPT_DIR/repo.old"
 
     # Copy fresh clone into repo/
-    rsync -a "$TEMP_DIR/repo/" "$REPO_DIR/" \
-        || fatal "rsync failed during repo install."
+    # Using cp -a instead of rsync — rsync is not available on the Arch ISO
+    cp -a "$TEMP_DIR/repo/." "$REPO_DIR/" \
+        || fatal "cp failed during repo install."
 
     # Verify install_engine.sh landed correctly
     [[ -f "$REPO_DIR/install_engine.sh" ]] \
