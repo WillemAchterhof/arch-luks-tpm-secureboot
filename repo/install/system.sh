@@ -11,7 +11,7 @@ IFS=$'\n\t'
 : "${TIMEZONE:?TIMEZONE not set}"
 : "${INSTALL_HOSTNAME:?INSTALL_HOSTNAME not set}"
 : "${USERNAME:?USERNAME not set}"
-: "${USER_SHELL:?USER_SHELL not set}"
+#: "${USER_SHELL:?USER_SHELL not set}"
 : "${USER_GROUPS:?USER_GROUPS not set}"
 : "${CONFIGS_DIR:?CONFIGS_DIR not set}"
 : "${USB_ROOT:?USB_ROOT not set}"
@@ -158,12 +158,12 @@ configure_user() {
     fi
 
     log "[*] Groups: $groups"
-    log "[*] Shell:  $USER_SHELL"
+    #log "[*] Shell:  $USER_SHELL"
 
     arch-chroot "$MNT" useradd \
         -m \
         -G "$groups" \
-        -s "$USER_SHELL" \
+    #    -s "$USER_SHELL" \
         "$USERNAME"
 
     echo
