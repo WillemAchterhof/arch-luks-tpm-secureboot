@@ -74,7 +74,7 @@ configure_uki_preset() {
     mkdir -p "$MNT/boot/EFI/Linux"
 
     cat > "$MNT/etc/mkinitcpio.d/linux.preset" <<'EOF'
-ALL_config="/etc/mkinitcpio.conf"
+ALL_config="/etc/mkinitcpio.conf.d/installer.conf"
 ALL_kver="/boot/vmlinuz-linux"
 
 PRESETS=('default')
