@@ -32,14 +32,19 @@ get_efi_partnum() {
 configure_mkinitcpio() {
     log "[*] Configuring mkinitcpio..."
 
-    # Write installer drop-in instead of patching the base mkinitcpio.conf.
-    # Drop-ins in mkinitcpio.conf.d/ are merged at build time.
-    mkdir -p "$MNT/etc/mkinitcpio.conf.d"
-    cat > "$MNT/etc/mkinitcpio.conf.d/installer.conf" <<'EOF'
-HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt plymouth filesystems fsck)
-COMPRESSION="zstd"
-COMPRESSION_OPTIONS="-3"
-EOF
+    # Patch the base mkinitcpio.conf directly so the preset can reference it
+    # with ALL_config="/etc/mkinitcpio.conf" and get the correct hooks
+    arch-chroot "$MNT" sed -i \
+        's|^HOOKS=.*|HOOKS=(base systemd keyboard autodetect modconf kms microcode block sd-encrypt plymouth filesystems fsck)|' \
+        /etc/mkinitcpio.conf
+
+    arch-chroot "$MNT" sed -i \
+        's|^#*COMPRESSION=.*|COMPRESSION="zstd"|' \
+        /etc/mkinitcpio.conf
+
+    arch-chroot "$MNT" sed -i \
+        's|^#*COMPRESSION_OPTIONS=.*|COMPRESSION_OPTIONS="-3"|' \
+        /etc/mkinitcpio.conf
 
     log "[*] mkinitcpio configured."
 }
@@ -73,8 +78,8 @@ configure_uki_preset() {
 
     mkdir -p "$MNT/boot/EFI/Linux"
 
-    cat > "$MNT/etc/mkinitcpio.d/linux.preset" <<'EOF'
-ALL_config="/etc/mkinitcpio.conf.d/installer.conf"
+    cat > "$MNT/etc/mkinitcpio.d/linux.preset" << 'EOF'
+ALL_config="/etc/mkinitcpio.conf"
 ALL_kver="/boot/vmlinuz-linux"
 
 PRESETS=('default')
