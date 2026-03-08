@@ -8,7 +8,7 @@ set -euo pipefail
 #  Goals:
 #    • Auto-connect WiFi from saved credentials
 #    • Fallback to terminal with nmcli instructions
-#    • Clone repo from GitHub
+#    • Clone repo from GitHub into ~/installer/repo/
 #    • Hand off to post_install_engine.sh
 # ==============================================================================
 
@@ -57,10 +57,6 @@ trap cleanup_temp EXIT
 
 msg()   { printf "\n[*] %s\n\n" "$1" | tee -a "$LOG_FILE"; }
 fatal() { printf "\n[FATAL] %s\n\n" "$1" | tee -a "$LOG_FILE"; exit 1; }
-
-need_cmd() {
-    command -v "$1" >/dev/null 2>&1 || fatal "Required command '$1' not found."
-}
 
 ensure_git() {
     if ! command -v git &>/dev/null; then
@@ -156,92 +152,32 @@ if ! internet_ok; then
 EOF
     bash --login || true
 
-    # Re-check after terminal session
-    internet_ok || fatal "Still no internet after terminal session — re-run when connected."
+    internet_ok || fatal "Still no internet — re-run when connected."
 fi
 
 msg "Internet OK."
 
 # ------------------------------------------------------------------------------
-# Repo verification
+# Clone / update repo directly into ~/installer/repo/
 # ------------------------------------------------------------------------------
 
-verify_repo_structure() {
-    local manifest="$REPO_DIR/install/lib/required_files.conf"
-    [[ -f "$manifest" ]] || { echo "  missing: install/lib/required_files.conf"; return 1; }
+ensure_git
 
-    local ok=true
-    while IFS= read -r file; do
-        [[ -z "$file" || "$file" == \#* ]] && continue
-        [[ -f "$REPO_DIR/$file" ]] \
-            || { echo "  missing: $file"; ok=false; }
-    done < "$manifest"
-
-    [[ "$ok" == true ]]
-}
-
-verify_repo_commit() {
-    [[ "$PINNED_COMMIT" == "skip" ]] && return 0
-    [[ -d "$REPO_DIR/.git" ]] || return 1
-
-    local repo_commit
-    repo_commit="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null)" || return 1
-    [[ "$repo_commit" == "$PINNED_COMMIT" ]]
-}
-
-# ------------------------------------------------------------------------------
-# Clone / update repo
-# ------------------------------------------------------------------------------
-
-rotate_repo() {
-    [[ -d "$INSTALLER_DIR/repo.old" ]] && rm -rf "$INSTALLER_DIR/repo.old"
-    [[ -d "$REPO_DIR" ]] && mv "$REPO_DIR" "$INSTALLER_DIR/repo.old"
-
-    cp -a "$TEMP_DIR/repo/." "$REPO_DIR/" \
-        || fatal "cp failed during repo install."
-
-    [[ -f "$REPO_DIR/post_install_engine.sh" ]] \
-        || fatal "post_install_engine.sh missing after install."
-
-    rm -rf "$INSTALLER_DIR/repo.old"
-    msg "Repo installed."
-}
-
-download_repo() {
-    msg "Fetching repo from GitHub..."
-    ensure_git
-
-    TEMP_DIR="$(mktemp -d)"
-
-    if [[ "$PINNED_COMMIT" == "skip" ]]; then
-        git clone "$REPO_URL" "$TEMP_DIR/repo" \
-            || fatal "git clone failed."
-    else
-        git clone --no-checkout "$REPO_URL" "$TEMP_DIR/repo" \
-            || fatal "git clone failed."
-        git -C "$TEMP_DIR/repo" fetch --depth 1 origin "$PINNED_COMMIT" \
-            || fatal "Pinned commit not found in remote."
-        git -C "$TEMP_DIR/repo" checkout "$PINNED_COMMIT" \
-            || fatal "Could not checkout pinned commit."
-    fi
-
-    rotate_repo
-}
-
-if [[ -d "$REPO_DIR" ]]; then
-    msg "Existing repo found — verifying..."
-    if verify_repo_structure && verify_repo_commit; then
-        msg "Repo OK."
-    else
-        msg "Repo invalid — reinstalling..."
-        download_repo
-        verify_repo_structure || fatal "Repo invalid after reinstall."
-    fi
+if [[ -d "$REPO_DIR/.git" ]]; then
+    msg "Repo already present — pulling latest..."
+    git -C "$REPO_DIR" pull --ff-only \
+        || msg "[!] git pull failed — using existing repo."
 else
-    msg "Repo missing — cloning..."
-    download_repo
-    verify_repo_structure || fatal "Repo invalid after install."
+    # Remove any partial clone
+    [[ -d "$REPO_DIR" ]] && rm -rf "$REPO_DIR"
+
+    msg "Cloning repo from GitHub into ~/installer/repo/ ..."
+    git clone "$REPO_URL" "$REPO_DIR" \
+        || fatal "git clone failed."
 fi
+
+[[ -f "$REPO_DIR/post_install_engine.sh" ]] \
+    || fatal "post_install_engine.sh missing from cloned repo."
 
 # ------------------------------------------------------------------------------
 # Write postboot state
@@ -277,4 +213,4 @@ else
 fi
 
 msg "Bootstrap complete — launching post-install engine..."
-exec bash "$REPO_DIR/post_install_engine.sh" "${HANDOFF_ARGS[@]}"
+exec bash "$REPO_DIR/post_install_engine.sh" "${HANDOFF_ARGS[@]}"s
