@@ -31,7 +31,7 @@ PINNED_COMMIT="skip"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALLER_DIR="$SCRIPT_DIR/installer"
-REPO_DIR="$INSTALLER_DIR/repo"
+REPO_DIR="$INSTALLER_DIR/repo/repo"
 STATE_DIR="$INSTALLER_DIR/output/state"
 STATE_FILE="$STATE_DIR/install.state"
 WIFI_CREDS="$SCRIPT_DIR/.wifi_creds"
@@ -170,16 +170,19 @@ msg "Internet OK."
 
 ensure_git
 
-if [[ -d "$REPO_DIR/.git" ]]; then
+# CLONE_DIR is the git root — GitHub repo contains a repo/ subfolder
+# so after clone: CLONE_DIR/repo/ = REPO_DIR
+CLONE_DIR="$INSTALLER_DIR/repo"
+
+if [[ -d "$CLONE_DIR/.git" ]]; then
     msg "Repo already present — pulling latest..."
-    git -C "$REPO_DIR" pull --ff-only \
+    git -C "$CLONE_DIR" pull --ff-only \
         || msg "[!] git pull failed — using existing repo."
 else
-    # Remove any partial clone
-    [[ -d "$REPO_DIR" ]] && rm -rf "$REPO_DIR"
+    [[ -d "$CLONE_DIR" ]] && rm -rf "$CLONE_DIR"
 
     msg "Cloning repo from GitHub into ~/installer/repo/ ..."
-    git clone "$REPO_URL" "$REPO_DIR" \
+    git clone "$REPO_URL" "$CLONE_DIR" \
         || fatal "git clone failed."
 fi
 
