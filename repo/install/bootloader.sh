@@ -62,7 +62,8 @@ configure_cmdline() {
     # happens in tpm.sh during postboot. On first boot the TPM binding does not
     # exist yet — the system will fall back to password unlock. This is expected.
     cat > "$MNT/etc/kernel/cmdline" <<EOF
-rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0+7+11 root=/dev/mapper/cryptroot rootfstype=$ROOT_FS rw lsm=lockdown,yama,apparmor,bpf apparmor=1 quiet splash
+quiet splash rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0+7+11 root=/dev/mapper/cryptroot rootfstype=$ROOT_FS lsm=landlock,lockdown,yama,apparmor,bpf apparmor=1 lockdown=confidentiality
+# rd.luks.name=$LUKS_UUID=cryptroot rd.luks.options=tpm2-device=auto,tpm2-pcrs=0+7+11 root=/dev/mapper/cryptroot rootfstype=$ROOT_FS rw lsm=lockdown,yama,apparmor,bpf apparmor=1 quiet splash
 EOF
 
     log "[*] Kernel cmdline written."
