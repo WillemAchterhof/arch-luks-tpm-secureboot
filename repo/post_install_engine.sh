@@ -35,15 +35,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #   LOG_FOLDER    = ~/installer/output/log
 #   STATE_FOLDER  = ~/installer/output/state
 #
-# REPO_ROOT = ~/installer/repo/repo (post_install_engine.sh lives here)
-# LIB_DIR   = ~/installer/repo/repo/install/lib
-# INSTALL_ROOT = ~/installer/repo/repo/install
-# REPO_ROOT (file_paths) = ~/installer/repo/repo
-# USB_ROOT (file_paths) = ~/installer/repo
-# That would give OUTPUT = ~/installer/repo/output — one level too deep.
-#
-# So we override USB_ROOT explicitly to ~/installer
-export USB_ROOT="$(cd "$REPO_ROOT/../../.." && pwd)"
+# REPO_ROOT = ~/installer/repo  (post_install_engine.sh lives here)
+# file_paths.sh would calculate USB_ROOT as ~/installer/repo/.. = ~/installer ✓
+# But we set it explicitly to be safe
+export USB_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
 
 # Create output dirs before sourcing bootstrap so logging works immediately
 mkdir -p "$USB_ROOT/output/log" "$USB_ROOT/output/state"

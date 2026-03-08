@@ -31,7 +31,7 @@ PINNED_COMMIT="skip"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALLER_DIR="$SCRIPT_DIR/installer"
-REPO_DIR="$INSTALLER_DIR/repo/repo"
+REPO_DIR="$INSTALLER_DIR/repo"
 # State path must match what file_paths.sh builds from USB_ROOT=~/installer:
 #   OUTPUT_FOLDER = ~/installer/output
 #   STATE_FOLDER  = ~/installer/output/state
@@ -168,29 +168,46 @@ fi
 msg "Internet OK."
 
 # ------------------------------------------------------------------------------
-# Clone / update repo directly into ~/installer/repo/
+# Clone repo — mirrors arch_secure_install.sh rotate_repo pattern
+# Clones into TEMP_DIR, then copies into INSTALLER_DIR/repo/
+# so structure mirrors the USB: INSTALLER_DIR acts as USB_ROOT
 # ------------------------------------------------------------------------------
 
 ensure_git
 
-# CLONE_DIR is the git root — GitHub repo contains a repo/ subfolder
-# so after clone: CLONE_DIR/repo/ = REPO_DIR
-CLONE_DIR="$INSTALLER_DIR/repo"
+rotate_repo() {
+    [[ -d "$INSTALLER_DIR/repo.old" ]] && rm -rf "$INSTALLER_DIR/repo.old"
+    [[ -d "$REPO_DIR" ]] && mv "$REPO_DIR" "$INSTALLER_DIR/repo.old"
 
-if [[ -d "$CLONE_DIR/.git" ]]; then
-    msg "Repo already present — pulling latest..."
-    git -C "$CLONE_DIR" pull --ff-only \
-        || msg "[!] git pull failed — using existing repo."
-else
-    [[ -d "$CLONE_DIR" ]] && rm -rf "$CLONE_DIR"
+    cp -a "$TEMP_DIR/repo/." "$REPO_DIR/" \
+        || fatal "cp failed during repo install."
 
-    msg "Cloning repo from GitHub into ~/installer/repo/ ..."
-    git clone "$REPO_URL" "$CLONE_DIR" \
+    [[ -f "$REPO_DIR/post_install_engine.sh" ]] \
+        || fatal "post_install_engine.sh missing after install."
+
+    rm -rf "$INSTALLER_DIR/repo.old"
+    msg "Repo installed."
+}
+
+download_repo() {
+    msg "Fetching repo from GitHub..."
+
+    TEMP_DIR="$(mktemp -d)"
+    git clone "$REPO_URL" "$TEMP_DIR" \
         || fatal "git clone failed."
+
+    rotate_repo
+}
+
+if [[ -d "$REPO_DIR" && -f "$REPO_DIR/post_install_engine.sh" ]]; then
+    msg "Repo already present — OK."
+else
+    msg "Repo missing or invalid — cloning..."
+    download_repo
 fi
 
 [[ -f "$REPO_DIR/post_install_engine.sh" ]] \
-    || fatal "post_install_engine.sh missing from cloned repo."
+    || fatal "post_install_engine.sh missing from repo."
 
 # ------------------------------------------------------------------------------
 # Write postboot state
