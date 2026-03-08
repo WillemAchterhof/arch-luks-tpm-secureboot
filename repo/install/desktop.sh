@@ -223,8 +223,9 @@ install_network_tools() {
 install_extra_packages() {
     [[ -z "${EXTRA_PACKAGES:-}" ]] && return 0
     log "[*] Installing extra packages..."
+    # Use yay — handles both official repos and AUR packages transparently
     # shellcheck disable=SC2086
-    install_pkgs $EXTRA_PACKAGES
+    sudo -u "$USERNAME" yay -S --noconfirm --needed $EXTRA_PACKAGES
     log "[*] Extra packages installed."
 }
 
