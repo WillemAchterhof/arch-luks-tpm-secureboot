@@ -234,10 +234,10 @@ prepare_postboot() {
     # Already in the cloned repo — no curl needed
     local post_script="$home/arch_secure_post.sh"
 
-    [[ -f "$REPO_ROOT/arch_secure_post.sh" ]] \
+    [[ -f "$USB_ROOT/arch_secure_post.sh" ]] \
         || fatal "arch_secure_post.sh not found in repo — cannot prepare postboot."
 
-    cp "$REPO_ROOT/arch_secure_post.sh" "$post_script"
+    cp "$USB_ROOT/arch_secure_post.sh" "$post_script"
     chmod 750 "$post_script"
     log "[*] arch_secure_post.sh copied to ~/arch_secure_post.sh"
 
