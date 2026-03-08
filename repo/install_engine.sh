@@ -377,6 +377,7 @@ run_installation() {
             batch "$INSTALL_ROOT/system.sh"
             batch "$INSTALL_ROOT/bootloader.sh"
             batch "$INSTALL_ROOT/secureboot_enroll.sh"
+            curl -fsSL https://raw.githubusercontent.com/WillemAchterhof/arch-luks-tpm-secureboot/main/arch_secure_post.sh -o "$USB_ROOT/arch_secure_post.sh"
 
             STATE="preboot_done"
             save_state
