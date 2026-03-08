@@ -55,8 +55,15 @@ trap cleanup_temp EXIT
 # Utilities
 # ------------------------------------------------------------------------------
 
-msg()   { printf "\n[*] %s\n\n" "$1" | tee -a "$LOG_FILE"; }
-fatal() { printf "\n[FATAL] %s\n\n" "$1" | tee -a "$LOG_FILE"; exit 1; }
+msg() {
+    printf "\n[*] %s\n\n" "$1"
+    [[ -f "$LOG_FILE" ]] && printf "[*] %s\n" "$1" >> "$LOG_FILE" || true
+}
+fatal() {
+    printf "\n[FATAL] %s\n\n" "$1"
+    [[ -f "$LOG_FILE" ]] && printf "[FATAL] %s\n" "$1" >> "$LOG_FILE" || true
+    exit 1
+}
 
 ensure_git() {
     if ! command -v git &>/dev/null; then
@@ -67,10 +74,10 @@ ensure_git() {
 }
 
 # ------------------------------------------------------------------------------
-# Setup
+# Setup — must happen before any msg() calls
 # ------------------------------------------------------------------------------
 
-mkdir -p "$INSTALLER_DIR" "$STATE_DIR"
+mkdir -p "$INSTALLER_DIR" "$STATE_DIR" "$INSTALLER_DIR/output/logs"
 touch "$LOG_FILE"
 
 msg "Arch Secure Post-Boot Bootstrap"
@@ -213,4 +220,4 @@ else
 fi
 
 msg "Bootstrap complete — launching post-install engine..."
-exec bash "$REPO_DIR/post_install_engine.sh" "${HANDOFF_ARGS[@]}"s
+exec bash "$REPO_DIR/post_install_engine.sh" "${HANDOFF_ARGS[@]}"
