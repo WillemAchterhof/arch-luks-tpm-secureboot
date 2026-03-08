@@ -394,7 +394,9 @@ run_installation() {
             echo "  Key location: $LUKS_KEY_FILE"
             echo
             if [[ -f "$LUKS_KEY_FILE" ]]; then
-                cat "=== $LUKS_KEY_FILE ==="
+                echo "  Key:"
+                echo
+                cat "$LUKS_KEY_FILE"
                 echo
             else
                 echo "  [!] Key file not found at: $LUKS_KEY_FILE"
