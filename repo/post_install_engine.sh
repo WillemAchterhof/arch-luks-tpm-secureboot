@@ -12,21 +12,17 @@ set -euo pipefail
 # Parse arguments
 # ------------------------------------------------------------------------------
 
-STATE_DIR=""
-LOG_DIR=""
 PROFILE_FILE=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --state-dir) STATE_DIR="$2";   shift 2 ;;
-        --log-dir)   LOG_DIR="$2";     shift 2 ;;
         --profile)   PROFILE_FILE="$2"; shift 2 ;;
+        # Legacy args accepted but ignored — paths derived from USB_ROOT
+        --state-dir) shift 2 ;;
+        --log-dir)   shift 2 ;;
         *) echo "[FATAL] Unknown argument: $1"; exit 1 ;;
     esac
 done
-
-[[ -n "$STATE_DIR" ]] || { echo "[FATAL] --state-dir required"; exit 1; }
-[[ -n "$LOG_DIR"   ]] || { echo "[FATAL] --log-dir required";   exit 1; }
 
 # ------------------------------------------------------------------------------
 # Bootstrap lib from repo
@@ -34,21 +30,29 @@ done
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-export STATE_FOLDER="$STATE_DIR"
-export LOG_FOLDER="$LOG_DIR"
-export USB_ROOT="$REPO_ROOT"
+# USB_ROOT must point to ~/installer so file_paths.sh builds:
+#   OUTPUT_FOLDER = ~/installer/output
+#   LOG_FOLDER    = ~/installer/output/log
+#   STATE_FOLDER  = ~/installer/output/state
+#
+# REPO_ROOT = ~/installer/repo/repo (post_install_engine.sh lives here)
+# LIB_DIR   = ~/installer/repo/repo/install/lib
+# INSTALL_ROOT = ~/installer/repo/repo/install
+# REPO_ROOT (file_paths) = ~/installer/repo/repo
+# USB_ROOT (file_paths) = ~/installer/repo
+# That would give OUTPUT = ~/installer/repo/output — one level too deep.
+#
+# So we override USB_ROOT explicitly to ~/installer
+export USB_ROOT="$(cd "$REPO_ROOT/../../.." && pwd)"
 
-# Create dirs BEFORE sourcing bootstrap — logging.sh writes to LOG_FOLDER
-# immediately on source and will fail if the directory doesn't exist
-mkdir -p "$STATE_FOLDER" "$LOG_FOLDER"
-
-# Verify state file exists and contains postboot before handing off
-if [[ ! -f "$STATE_FOLDER/install.state" ]]; then
-    echo "[FATAL] State file missing: $STATE_FOLDER/install.state"
-    exit 1
-fi
+# Create output dirs before sourcing bootstrap so logging works immediately
+mkdir -p "$USB_ROOT/output/log" "$USB_ROOT/output/state"
 
 source "$REPO_ROOT/install/lib/bootstrap.sh"
+
+# Verify state file exists
+[[ -f "$STATE_FOLDER/install.state" ]] \
+    || fatal "State file missing: $STATE_FOLDER/install.state"
 
 load_state
 
@@ -68,6 +72,9 @@ if [[ -d /run/archiso ]]; then
 fi
 
 log "[*] Post-install engine started. State: $STATE"
+log "[*] USB_ROOT: $USB_ROOT"
+log "[*] STATE_FOLDER: $STATE_FOLDER"
+log "[*] LOG_FOLDER: $LOG_FOLDER"
 
 # ==============================================================================
 # PROFILE LOADING

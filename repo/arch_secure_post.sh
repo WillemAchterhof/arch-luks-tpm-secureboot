@@ -32,6 +32,9 @@ PINNED_COMMIT="skip"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALLER_DIR="$SCRIPT_DIR/installer"
 REPO_DIR="$INSTALLER_DIR/repo/repo"
+# State path must match what file_paths.sh builds from USB_ROOT=~/installer:
+#   OUTPUT_FOLDER = ~/installer/output
+#   STATE_FOLDER  = ~/installer/output/state
 STATE_DIR="$INSTALLER_DIR/output/state"
 STATE_FILE="$STATE_DIR/install.state"
 WIFI_CREDS="$SCRIPT_DIR/.wifi_creds"
@@ -210,10 +213,7 @@ find "$REPO_DIR" -name "*.sh" -exec chmod 750 {} \;
 # Hand off to post_install_engine.sh
 # ------------------------------------------------------------------------------
 
-HANDOFF_ARGS=(
-    --state-dir "$STATE_DIR"
-    --log-dir   "$INSTALLER_DIR/output/logs"
-)
+HANDOFF_ARGS=()
 
 if [[ -f "$POST_PROFILE" ]]; then
     msg "Post profile found — running in automatic mode."
