@@ -365,7 +365,10 @@ install_jakoolit() {
         https://github.com/JaKooLit/Arch-Hyprland.git "$build_dir" \
         || fatal "Failed to clone JaKooLit Arch-Hyprland installer."
 
-    (cd "$build_dir" && bash install.sh) \
+    chown -R "$USERNAME:$USERNAME" "$build_dir"
+
+    # JaKooLit explicitly rejects root — must run as user
+    sudo -u "$USERNAME" bash -c "cd '$build_dir' && bash install.sh" \
         || fatal "JaKooLit installer failed."
 
     rm -rf "$build_dir"
