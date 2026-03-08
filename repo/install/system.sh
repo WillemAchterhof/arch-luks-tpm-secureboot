@@ -61,6 +61,7 @@ install_base() {
         libpwquality \
         polkit \
         plymouth \
+        neovim \
         tar gzip unzip p7zip
 
     log "[*] Base system installed."
