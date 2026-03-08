@@ -46,21 +46,25 @@ verify_secureboot_active() {
 detect_luks_device() {
     log "[*] Detecting root LUKS partition..."
 
-    local root_source
+    local root_source mapper_name dep_dev
     root_source=$(findmnt -no SOURCE /) \
         || fatal "Cannot determine root source."
 
     [[ "$root_source" == /dev/mapper/* ]] \
         || fatal "Root is not on a mapped LUKS device."
 
-    # PKNAME gives the parent partition (e.g. sda2, nvme0n1p2) —
-    # systemd-cryptenroll needs the LUKS partition, not the whole disk.
-    LUKS_PART=$(lsblk -no PKNAME "$root_source" | head -n1)
+    # Extract mapper name (e.g. cryptroot from /dev/mapper/cryptroot)
+    mapper_name="${root_source#/dev/mapper/}"
 
-    [[ -n "$LUKS_PART" ]] \
+    # dmsetup deps gives the underlying block device as (major:minor)
+    # -o devname returns it as a name like nvme0n1p2
+    dep_dev=$(dmsetup deps -o devname "$mapper_name" 2>/dev/null \
+        | grep -oP "\(\K[^)]+" | head -1)
+
+    [[ -n "$dep_dev" ]] \
         || fatal "Failed resolving underlying LUKS partition."
 
-    LUKS_PART="/dev/$LUKS_PART"
+    LUKS_PART="/dev/$dep_dev"
 
     [[ -b "$LUKS_PART" ]] \
         || fatal "Resolved LUKS partition is not a block device: $LUKS_PART"
