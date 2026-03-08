@@ -38,7 +38,15 @@ export STATE_FOLDER="$STATE_DIR"
 export LOG_FOLDER="$LOG_DIR"
 export USB_ROOT="$REPO_ROOT"
 
+# Create dirs BEFORE sourcing bootstrap — logging.sh writes to LOG_FOLDER
+# immediately on source and will fail if the directory doesn't exist
 mkdir -p "$STATE_FOLDER" "$LOG_FOLDER"
+
+# Verify state file exists and contains postboot before handing off
+if [[ ! -f "$STATE_FOLDER/install.state" ]]; then
+    echo "[FATAL] State file missing: $STATE_FOLDER/install.state"
+    exit 1
+fi
 
 source "$REPO_ROOT/install/lib/bootstrap.sh"
 
