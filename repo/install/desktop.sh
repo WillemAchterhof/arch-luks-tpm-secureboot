@@ -47,14 +47,10 @@ install_yay() {
     fi
 
     log "[*] Installing yay AUR helper..."
-
-    # base-devel required to build AUR packages
     pacman -S --noconfirm --needed base-devel git
 
     local build_dir
     build_dir="$(mktemp -d /tmp/yay-build-XXXXXX)"
-
-    # makepkg refuses to run as root — clone and build as $USERNAME
     chown "$USERNAME:$USERNAME" "$build_dir"
 
     sudo -u "$USERNAME" git clone \
@@ -71,7 +67,6 @@ install_yay() {
 
 # ==============================================================================
 # LAYER 1 — WAYLAND BASE
-# Required by both KDE (wayland session) and Hyprland
 # ==============================================================================
 
 install_wayland_base() {
@@ -102,11 +97,14 @@ install_audio() {
         pamixer \
         pavucontrol
 
-    # Enable user services for $USERNAME — requires linger so services
-    # start without an active login session.
+    # Enable linger so user services start without an active login session
     loginctl enable-linger "$USERNAME"
-    sudo -u "$USERNAME" \
-        systemctl --user enable pipewire pipewire-pulse wireplumber
+
+    # Must use --machine — no user session exists at post-boot stage so
+    # $DBUS_SESSION_BUS_ADDRESS and $XDG_RUNTIME_DIR are not set.
+    systemctl --machine="${USERNAME}@.host" --user enable \
+        pipewire pipewire-pulse wireplumber \
+        || log "[!] Could not enable audio services via --machine. Run manually after login: systemctl --user enable pipewire pipewire-pulse wireplumber"
 
     log "[*] Audio stack installed."
 }
@@ -122,7 +120,6 @@ install_shell() {
         zsh-completions \
         zsh-autosuggestions
 
-    # Only change shell if not already set to zsh
     local current_shell
     current_shell="$(getent passwd "$USERNAME" | cut -d: -f7)"
     if [[ "$current_shell" != "/usr/bin/zsh" ]]; then
@@ -135,7 +132,6 @@ install_shell() {
 
 # ==============================================================================
 # LAYER 4 — FONTS
-# Nerd fonts required for waybar/rofi icons
 # ==============================================================================
 
 install_fonts() {
@@ -153,7 +149,7 @@ install_fonts() {
 }
 
 # ==============================================================================
-# LAYER 5 — THEMING (GTK + Qt consistency)
+# LAYER 5 — THEMING
 # ==============================================================================
 
 install_theming() {
@@ -216,22 +212,17 @@ install_filemanager() {
 install_network_tools() {
     log "[*] Installing network tools..."
     install_pkgs network-manager-applet
-
     install_aur_pkgs networkmanager-dmenu-git
-
     log "[*] Network tools installed."
 }
 
 # ==============================================================================
 # LAYER 9 — EXTRA PACKAGES (from profile)
-# EXTRA_PACKAGES must be a space-separated list of package names.
 # ==============================================================================
 
 install_extra_packages() {
     [[ -z "${EXTRA_PACKAGES:-}" ]] && return 0
-
     log "[*] Installing extra packages..."
-    # Word splitting is intentional here — EXTRA_PACKAGES is space-separated
     # shellcheck disable=SC2086
     install_pkgs $EXTRA_PACKAGES
     log "[*] Extra packages installed."
@@ -284,7 +275,6 @@ deploy_alacritty_config() {
 # ==============================================================================
 
 configure_user_groups() {
-    # libvirt — only if package is installed
     if pacman -Q libvirt &>/dev/null; then
         usermod -aG libvirt "$USERNAME"
         log "[*] Added $USERNAME to libvirt group."
@@ -297,7 +287,6 @@ configure_user_groups() {
 
 install_kde() {
     log "[*] Installing KDE Plasma..."
-
     install_pkgs \
         plasma-meta \
         kde-applications-meta \
@@ -305,59 +294,36 @@ install_kde() {
         xdg-desktop-portal-kde
 
     systemctl enable sddm
-    log "[*] SDDM enabled."
-
     configure_user_groups
     log "[*] KDE installed."
 }
 
 # ==============================================================================
-# HYPRLAND — COMPOSITOR STACK
+# HYPRLAND
 # ==============================================================================
 
 install_hyprland() {
     log "[*] Installing Hyprland compositor stack..."
 
-    # Core compositor
     install_pkgs \
-        hyprland \
-        hyprlock \
-        hypridle \
-        hyprpaper \
+        hyprland hyprlock hypridle hyprpaper \
         xdg-desktop-portal-hyprland \
         polkit-kde-agent
 
-    # Bar + launcher + notifications
     install_pkgs \
-        waybar \
-        rofi-wayland \
-        dunst \
-        wlogout
+        waybar rofi-wayland dunst wlogout
 
-    # Screenshot + clipboard
     install_pkgs \
-        grim \
-        slurp \
-        swappy \
-        wl-clipboard \
-        cliphist
+        grim slurp swappy wl-clipboard cliphist
 
-    # Hardware controls
     install_pkgs \
-        brightnessctl \
-        playerctl \
-        wlsunset
+        brightnessctl playerctl wlsunset
 
-    # Display manager
     install_pkgs sddm
     systemctl enable sddm
-    log "[*] SDDM enabled."
 
     configure_user_groups
-
-    log "[*] Deploying Hyprland configs..."
     deploy_hyprland_configs
-
     log "[*] Hyprland installed."
 }
 
@@ -368,40 +334,26 @@ deploy_hyprland_configs() {
 
     mkdir -p "$hypr_cfg/themes" "$waybar_cfg" "$rofi_cfg"
 
-    # Hyprland
     deploy_config "$CONFIGS_DIR/hyprland/hyprland.conf"           "$hypr_cfg/hyprland.conf"
     deploy_config "$CONFIGS_DIR/hyprland/hyprlock.conf"           "$hypr_cfg/hyprlock.conf"
     deploy_config "$CONFIGS_DIR/hyprland/themes/tokyonight.conf"  "$hypr_cfg/themes/tokyonight.conf"
-
-    # Waybar
     deploy_config "$CONFIGS_DIR/waybar/config.jsonc"              "$waybar_cfg/config.jsonc"
     deploy_config "$CONFIGS_DIR/waybar/style.css"                 "$waybar_cfg/style.css"
-
-    # Rofi
     deploy_config "$CONFIGS_DIR/rofi/config.rasi"                 "$rofi_cfg/config.rasi"
     deploy_config "$CONFIGS_DIR/rofi/tokyonight.rasi"             "$rofi_cfg/tokyonight.rasi"
 
-    # Fix ownership
-    chown -R "$USERNAME:$USERNAME" \
-        "$hypr_cfg" \
-        "$waybar_cfg" \
-        "$rofi_cfg"
-
+    chown -R "$USERNAME:$USERNAME" "$hypr_cfg" "$waybar_cfg" "$rofi_cfg"
     log "[*] Hyprland configs deployed."
 }
 
 # ==============================================================================
-# JAKOOLIT — Arch-Hyprland Installer
+# JAKOOLIT
 # ==============================================================================
 
 install_jakoolit() {
     log "[*] Launching JaKooLit Arch-Hyprland installer..."
-    log ""
     log "  Thank you JaKooLit — https://github.com/JaKooLit/Arch-Hyprland"
-    log ""
-    log "  Note: JaKooLit installer is interactive — please follow the prompts."
-    log "  Any overlapping packages will be safely reinstalled."
-    log ""
+    log "  Note: interactive — please follow the prompts."
 
     pacman -S --noconfirm --needed git
 
@@ -412,7 +364,6 @@ install_jakoolit() {
         https://github.com/JaKooLit/Arch-Hyprland.git "$build_dir" \
         || fatal "Failed to clone JaKooLit Arch-Hyprland installer."
 
-    # Run in subshell to avoid changing working directory of install_engine.sh
     (cd "$build_dir" && bash install.sh) \
         || fatal "JaKooLit installer failed."
 
@@ -426,13 +377,9 @@ install_jakoolit() {
 
 cleanup() {
     log "[*] Running post-install cleanup..."
-
     rm -rf /tmp/yay-build-* 2>/dev/null || true
-
     yay -Sc --noconfirm 2>/dev/null || true
-
     pacman -Sc --noconfirm
-
     log "[*] Cleanup complete."
 }
 
@@ -446,14 +393,12 @@ log "  Hyprland setup inspired by and grateful to:"
 log "    - JaKooLit (Arch-Hyprland)    https://github.com/JaKooLit/Arch-Hyprland"
 log ""
 
-# Ensure multilib and fresh db
 sed -i \
     -e 's/^#Color/Color/' \
     -e '/^#\[multilib\]/,/^#Include = \/etc\/pacman.d\/mirrorlist/ s/^#//' \
     /etc/pacman.conf
 pacman -Sy --noconfirm
 
-# Shared layers — installed for all desktop environments
 install_yay
 install_wayland_base
 install_audio
@@ -467,20 +412,11 @@ install_extra_packages
 configure_environment
 deploy_alacritty_config
 
-# Desktop-specific
 case "${DESKTOP_ENV,,}" in
-    kde)
-        install_kde
-        ;;
-    hyprland)
-        install_hyprland
-        ;;
-    jakoolit)
-        install_jakoolit
-        ;;
-    *)
-        fatal "Unknown DESKTOP_ENV: $DESKTOP_ENV — supported: kde, hyprland, jakoolit"
-        ;;
+    kde)       install_kde      ;;
+    hyprland)  install_hyprland ;;
+    jakoolit)  install_jakoolit ;;
+    *)         fatal "Unknown DESKTOP_ENV: $DESKTOP_ENV — supported: kde, hyprland, jakoolit" ;;
 esac
 
 cleanup
