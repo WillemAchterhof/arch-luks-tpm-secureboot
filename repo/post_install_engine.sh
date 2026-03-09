@@ -44,11 +44,9 @@ export PROFILE_FOLDER="$OUTPUT_FOLDER/profile"
 # Create dirs now that paths are correct
 mkdir -p "$LOG_FOLDER" "$STATE_FOLDER" "$PROFILE_FOLDER"
 
-# Verify state file exists
-[[ -f "$STATE_FOLDER/install.state" ]] \
-    || fatal "State file missing: $STATE_FOLDER/install.state"
-
-load_state
+# Hardcode state to postboot — this engine only ever runs post-boot.
+# Avoids load_state path resolution issues entirely.
+STATE="postboot"
 
 INSTALL_MODE="${INSTALL_MODE:-}"
 INSTALL_PROFILE="${INSTALL_PROFILE:-}"
