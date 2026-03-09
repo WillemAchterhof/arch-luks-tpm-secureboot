@@ -84,7 +84,7 @@ ensure_git() {
 # Setup — must happen before any msg() calls
 # ------------------------------------------------------------------------------
 
-mkdir -p "$INSTALLER_DIR" "$STATE_DIR" "$INSTALLER_DIR/output/logs"
+mkdir -p "$INSTALLER_DIR" "$STATE_DIR" "$INSTALLER_DIR/output/log"
 touch "$LOG_FILE"
 
 msg "Arch Secure Post-Boot Bootstrap"
