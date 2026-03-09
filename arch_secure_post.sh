@@ -29,7 +29,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # post_install_engine.sh lives at REPO_DIR/post_install_engine.sh
 # file_paths.sh builds: USB_ROOT=INSTALLER_DIR, OUTPUT=INSTALLER_DIR/output
 INSTALLER_DIR="$SCRIPT_DIR/installer"
-REPO_DIR="$INSTALLER_DIR/repo"
+# GitHub repo root contains: arch_secure_install.sh, arch_secure_post.sh, repo/
+# post_install_engine.sh lives inside the repo/ subfolder
+CLONE_DIR="$INSTALLER_DIR/repo"
+REPO_DIR="$INSTALLER_DIR/repo/repo"
 
 OUTPUT_DIR="$INSTALLER_DIR/output"
 STATE_DIR="$OUTPUT_DIR/state"
@@ -56,7 +59,7 @@ trap cleanup_temp EXIT
 # Create dirs + log file before any msg() calls
 # ------------------------------------------------------------------------------
 
-mkdir -p "$INSTALLER_DIR" "$REPO_DIR" "$STATE_DIR" "$LOG_DIR" "$PROFILE_DIR"
+mkdir -p "$INSTALLER_DIR" "$CLONE_DIR" "$STATE_DIR" "$LOG_DIR" "$PROFILE_DIR"
 touch "$LOG_FILE"
 
 # ------------------------------------------------------------------------------
@@ -166,7 +169,7 @@ msg "Internet OK."
 ensure_git
 
 clone_repo() {
-    msg "Cloning installer repository into $REPO_DIR ..."
+    msg "Cloning installer repository into $CLONE_DIR ..."
 
     TEMP_DIR="$(mktemp -d)"
 
@@ -178,11 +181,11 @@ clone_repo() {
     # Show what was cloned for debugging
     ls "$TEMP_DIR" >> "$LOG_FILE" 2>&1 || true
 
-    rm -rf "$REPO_DIR"
-    mkdir -p "$REPO_DIR"
+    rm -rf "$CLONE_DIR"
+    mkdir -p "$CLONE_DIR"
 
-    cp -a "$TEMP_DIR/." "$REPO_DIR/" \
-        || fatal "Failed copying repo into $REPO_DIR."
+    cp -a "$TEMP_DIR/." "$CLONE_DIR/" \
+        || fatal "Failed copying repo into $CLONE_DIR."
 
     msg "Repo contents: $(ls "$REPO_DIR")"
 

@@ -35,10 +35,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 #   LOG_FOLDER    = ~/installer/output/log
 #   STATE_FOLDER  = ~/installer/output/state
 #
-# REPO_ROOT = ~/installer/repo
-# USB_ROOT  = ~/installer (one level up)
+# REPO_ROOT = ~/installer/repo/repo
+# USB_ROOT  = ~/installer (two levels up)
 # file_paths.sh builds OUTPUT_FOLDER = ~/installer/output ✓
-export USB_ROOT="$(cd "$REPO_ROOT/.." && pwd)"
+export USB_ROOT="$(cd "$REPO_ROOT/../.." && pwd)"
 
 # Create output dirs before sourcing bootstrap so logging works immediately
 mkdir -p "$USB_ROOT/output/log" "$USB_ROOT/output/state"
