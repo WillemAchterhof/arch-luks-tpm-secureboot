@@ -258,4 +258,3 @@ fi
 msg "Launching post-install engine..."
 
 exec bash "$REPO_DIR/post_install_engine.sh" "${HANDOFF_ARGS[@]}"
-```
