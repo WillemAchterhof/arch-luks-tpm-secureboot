@@ -31,11 +31,15 @@ PINNED_COMMIT="skip"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 INSTALLER_DIR="$SCRIPT_DIR/installer"
-REPO_DIR="$INSTALLER_DIR/repo"
+# CLONE_DIR = git clone target (GitHub repo root)
+# REPO_DIR   = inner repo/ subfolder where scripts live
+# Mirrors USB structure: USB_ROOT/repo/
+CLONE_DIR="$INSTALLER_DIR/repo"
+REPO_DIR="$INSTALLER_DIR/repo/repo"
 # State path must match what file_paths.sh builds from USB_ROOT=~/installer:
 #   OUTPUT_FOLDER = ~/installer/output
 #   STATE_FOLDER  = ~/installer/output/state
-STATE_DIR="$INSTALLER_DIR/output/state"
+STATE_DIR="$INSTALLER_DIR/output/state"  # matches file_paths.sh: USB_ROOT=INSTALLER_DIR
 STATE_FILE="$STATE_DIR/install.state"
 WIFI_CREDS="$SCRIPT_DIR/.wifi_creds"
 POST_PROFILE="$SCRIPT_DIR/post_default.conf"
@@ -177,9 +181,9 @@ ensure_git
 
 rotate_repo() {
     [[ -d "$INSTALLER_DIR/repo.old" ]] && rm -rf "$INSTALLER_DIR/repo.old"
-    [[ -d "$REPO_DIR" ]] && mv "$REPO_DIR" "$INSTALLER_DIR/repo.old"
+    [[ -d "$CLONE_DIR" ]] && mv "$CLONE_DIR" "$INSTALLER_DIR/repo.old"
 
-    cp -a "$TEMP_DIR/repo/." "$REPO_DIR/" \
+    cp -a "$TEMP_DIR/." "$CLONE_DIR/" \
         || fatal "cp failed during repo install."
 
     [[ -f "$REPO_DIR/post_install_engine.sh" ]] \
@@ -199,7 +203,7 @@ download_repo() {
     rotate_repo
 }
 
-if [[ -d "$REPO_DIR" && -f "$REPO_DIR/post_install_engine.sh" ]]; then
+if [[ -d "$CLONE_DIR" && -f "$REPO_DIR/post_install_engine.sh" ]]; then
     msg "Repo already present — OK."
 else
     msg "Repo missing or invalid — cloning..."

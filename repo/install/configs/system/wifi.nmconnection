@@ -3,6 +3,7 @@ id=WIFI_SSID
 uuid=WIFI_UUID
 type=wifi
 autoconnect=true
+autoconnect-priority=10
 
 [wifi]
 ssid=WIFI_SSID
