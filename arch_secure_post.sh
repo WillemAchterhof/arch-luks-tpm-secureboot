@@ -186,7 +186,7 @@ clone_repo() {
 
     msg "Repo contents: $(ls "$REPO_DIR")"
 
-    [[ -f "$REPO_DIR/repo/post_install_engine.sh" ]] \
+    [[ -f "$REPO_DIR/repo/repo/post_install_engine.sh" ]] \
         || fatal "post_install_engine.sh not found at $REPO_DIR/post_install_engine.sh"
 
     msg "Repository installed successfully."
