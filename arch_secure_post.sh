@@ -1,19 +1,21 @@
+```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
 # ==============================================================================
 #  Arch Secure Installer — Post-Boot Bootstrap
 # ==============================================================================
-#  Mirrors arch_secure_install.sh structure.
 #  Goals:
-#    • Auto-connect WiFi from saved credentials
-#    • Fallback to terminal with nmcli instructions
-#    • Clone repo from GitHub into ~/installer/repo/
-#    • Hand off to post_install_engine.sh
+#    • Recreate the same structure as the USB installer in ~/installer
+#    • Auto-connect WiFi using saved credentials if available
+#    • Provide interactive fallback if internet is unavailable
+#    • Clone installer repo
+#    • Restore installer state
+#    • Launch post_install_engine.sh
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# Check for root
+# Root check
 # ------------------------------------------------------------------------------
 
 if [[ $EUID -ne 0 ]]; then
@@ -30,15 +32,20 @@ REPO_URL="https://github.com/WillemAchterhof/arch-luks-tpm-secureboot.git"
 PINNED_COMMIT="skip"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 INSTALLER_DIR="$SCRIPT_DIR/installer"
 REPO_DIR="$INSTALLER_DIR/repo"
-# State path must match what file_paths.sh builds from USB_ROOT=~/installer:
-#   OUTPUT_FOLDER = ~/installer/output
-#   STATE_FOLDER  = ~/installer/output/state
-STATE_DIR="$INSTALLER_DIR/output/state"
+
+OUTPUT_DIR="$INSTALLER_DIR/output"
+STATE_DIR="$OUTPUT_DIR/state"
+LOG_DIR="$OUTPUT_DIR/logs"
+PROFILE_DIR="$OUTPUT_DIR/profiles"
+
 STATE_FILE="$STATE_DIR/install.state"
+
 WIFI_CREDS="$SCRIPT_DIR/.wifi_creds"
 POST_PROFILE="$SCRIPT_DIR/post_default.conf"
+
 LOG_FILE="$INSTALLER_DIR/postboot_bootstrap.log"
 
 TEMP_DIR=""
@@ -55,84 +62,51 @@ cleanup_temp() {
 trap cleanup_temp EXIT
 
 # ------------------------------------------------------------------------------
-# Utilities
+# Logging helpers
 # ------------------------------------------------------------------------------
 
 msg() {
     printf "\n[*] %s\n\n" "$1"
-    [[ -f "$LOG_FILE" ]] && printf "[*] %s\n" "$1" >> "$LOG_FILE" || true
+    printf "[*] %s\n" "$1" >> "$LOG_FILE"
 }
+
 fatal() {
     printf "\n[FATAL] %s\n\n" "$1"
-    [[ -f "$LOG_FILE" ]] && printf "[FATAL] %s\n" "$1" >> "$LOG_FILE" || true
+    printf "[FATAL] %s\n" "$1" >> "$LOG_FILE"
     exit 1
 }
 
+# ------------------------------------------------------------------------------
+# Prepare directory layout
+# ------------------------------------------------------------------------------
+
+mkdir -p \
+    "$INSTALLER_DIR" \
+    "$REPO_DIR" \
+    "$OUTPUT_DIR" \
+    "$LOG_DIR" \
+    "$STATE_DIR" \
+    "$PROFILE_DIR"
+
+touch "$LOG_FILE"
+
+msg "Arch Secure Installer — Post-Boot Bootstrap"
+msg "Installer directory: $INSTALLER_DIR"
+
+# ------------------------------------------------------------------------------
+# Ensure git exists
+# ------------------------------------------------------------------------------
+
 ensure_git() {
     if ! command -v git &>/dev/null; then
-        msg "git not found — installing..."
+        msg "Installing git..."
         pacman -Sy --noconfirm git \
             || fatal "Failed to install git."
     fi
 }
 
 # ------------------------------------------------------------------------------
-# Setup — must happen before any msg() calls
-# ------------------------------------------------------------------------------
-
-mkdir -p "$INSTALLER_DIR" "$STATE_DIR" "$INSTALLER_DIR/output/logs"
-touch "$LOG_FILE"
-
-msg "Arch Secure Post-Boot Bootstrap"
-msg "Log: $LOG_FILE"
-
-# ------------------------------------------------------------------------------
-# WiFi — auto connect from saved creds, fallback to terminal
-# ------------------------------------------------------------------------------
-
-connect_wifi() {
-    if [[ ! -f "$WIFI_CREDS" ]]; then
-        msg "No saved WiFi credentials found — skipping auto-connect."
-        return
-    fi
-
-    local ssid passphrase
-    ssid=$(      grep '^SSID='       "$WIFI_CREDS" | cut -d= -f2-)
-    passphrase=$(grep '^PASSPHRASE=' "$WIFI_CREDS" | cut -d= -f2-)
-
-    if [[ -z "$ssid" ]]; then
-        msg "WiFi creds file exists but SSID is empty — skipping."
-        shred -u "$WIFI_CREDS" 2>/dev/null || rm -f "$WIFI_CREDS"
-        return
-    fi
-
-    msg "Auto-connecting to WiFi: $ssid"
-
-    # Wait for NetworkManager to be ready
-    local retries=10
-    while ! nmcli general status &>/dev/null && (( retries-- > 0 )); do
-        sleep 1
-    done
-
-    if [[ -n "$passphrase" ]]; then
-        nmcli device wifi connect "$ssid" password "$passphrase" \
-            && msg "WiFi connected: $ssid" \
-            || msg "[!] Auto-connect failed for: $ssid"
-    else
-        nmcli device wifi connect "$ssid" \
-            && msg "WiFi connected: $ssid" \
-            || msg "[!] Auto-connect failed for: $ssid"
-    fi
-
-    # Shred creds immediately after use
-    shred -u "$WIFI_CREDS" 2>/dev/null || rm -f "$WIFI_CREDS"
-    msg "WiFi credentials removed."
-}
-
-connect_wifi
-
-# ------------------------------------------------------------------------------
-# Internet check — fallback to terminal with instructions
+# Internet check
 # ------------------------------------------------------------------------------
 
 internet_ok() {
@@ -140,104 +114,148 @@ internet_ok() {
         || ping -c1 -W2 1.1.1.1 >/dev/null 2>&1
 }
 
-if ! internet_ok; then
-    cat << 'EOF'
+# ------------------------------------------------------------------------------
+# WiFi auto connect
+# ------------------------------------------------------------------------------
 
-================================================
-  No internet detected.
-================================================
+connect_wifi() {
 
-  Connect WiFi with nmcli:
+    if [[ ! -f "$WIFI_CREDS" ]]; then
+        msg "No saved WiFi credentials."
+        return
+    fi
 
-    nmcli device wifi list
-    nmcli device wifi connect "SSID" password "PASSWORD"
+    local ssid pass
 
-  Or for a hidden network:
+    ssid=$(grep '^SSID=' "$WIFI_CREDS" | cut -d= -f2-)
+    pass=$(grep '^PASSPHRASE=' "$WIFI_CREDS" | cut -d= -f2-)
 
-    nmcli device wifi connect "SSID" password "PASSWORD" hidden yes
+    if [[ -z "$ssid" ]]; then
+        msg "WiFi credential file invalid."
+        rm -f "$WIFI_CREDS"
+        return
+    fi
 
-  Once connected, type: exit
+    msg "Attempting WiFi connection: $ssid"
 
-================================================
-EOF
-    bash --login || true
+    if [[ -n "$pass" ]]; then
+        nmcli device wifi connect "$ssid" password "$pass" \
+            && msg "Connected to $ssid" \
+            || msg "Auto connect failed."
+    else
+        nmcli device wifi connect "$ssid" \
+            && msg "Connected to $ssid" \
+            || msg "Auto connect failed."
+    fi
 
-    internet_ok || fatal "Still no internet — re-run when connected."
-fi
+    shred -u "$WIFI_CREDS" 2>/dev/null || rm -f "$WIFI_CREDS"
+}
 
-msg "Internet OK."
+connect_wifi
 
 # ------------------------------------------------------------------------------
-# Clone repo — mirrors arch_secure_install.sh rotate_repo pattern
-# Clones into TEMP_DIR, then copies into INSTALLER_DIR/repo/
-# so structure mirrors the USB: INSTALLER_DIR acts as USB_ROOT
+# Internet fallback
+# ------------------------------------------------------------------------------
+
+if ! internet_ok; then
+
+cat << 'EOF'
+
+==========================================
+ No internet detected
+==========================================
+
+Connect WiFi manually:
+
+  nmcli device wifi list
+  nmcli device wifi connect "SSID" password "PASSWORD"
+
+When connected type:
+
+  exit
+
+==========================================
+
+EOF
+
+bash --login || true
+
+internet_ok || fatal "Internet still unavailable."
+
+fi
+
+msg "Internet connection OK."
+
+# ------------------------------------------------------------------------------
+# Clone installer repo
 # ------------------------------------------------------------------------------
 
 ensure_git
 
-rotate_repo() {
-    [[ -d "$INSTALLER_DIR/repo.old" ]] && rm -rf "$INSTALLER_DIR/repo.old"
-    [[ -d "$REPO_DIR" ]] && mv "$REPO_DIR" "$INSTALLER_DIR/repo.old"
+clone_repo() {
 
-    cp -a "$TEMP_DIR/repo/." "$REPO_DIR/" \
-        || fatal "cp failed during repo install."
-
-    [[ -f "$REPO_DIR/post_install_engine.sh" ]] \
-        || fatal "post_install_engine.sh missing after install."
-
-    rm -rf "$INSTALLER_DIR/repo.old"
-    msg "Repo installed."
-}
-
-download_repo() {
-    msg "Fetching repo from GitHub..."
+    msg "Cloning installer repository..."
 
     TEMP_DIR="$(mktemp -d)"
-    git clone "$REPO_URL" "$TEMP_DIR" \
-        || fatal "git clone failed."
 
-    rotate_repo
+    if [[ "$PINNED_COMMIT" == "skip" ]]; then
+        git clone "$REPO_URL" "$TEMP_DIR" \
+            || fatal "git clone failed."
+    else
+        git clone --no-checkout "$REPO_URL" "$TEMP_DIR" \
+            || fatal "git clone failed."
+
+        git -C "$TEMP_DIR" fetch --depth 1 origin "$PINNED_COMMIT"
+        git -C "$TEMP_DIR" checkout "$PINNED_COMMIT"
+    fi
+
+    rm -rf "$REPO_DIR"
+    mkdir -p "$REPO_DIR"
+
+    cp -a "$TEMP_DIR/." "$REPO_DIR/" \
+        || fatal "Failed installing repo."
+
+    [[ -f "$REPO_DIR/post_install_engine.sh" ]] \
+        || fatal "post_install_engine.sh missing."
+
+    msg "Repository installed."
 }
 
-if [[ -d "$REPO_DIR" && -f "$REPO_DIR/post_install_engine.sh" ]]; then
-    msg "Repo already present — OK."
+if [[ -f "$REPO_DIR/post_install_engine.sh" ]]; then
+    msg "Repository already present."
 else
-    msg "Repo missing or invalid — cloning..."
-    download_repo
+    clone_repo
 fi
 
-[[ -f "$REPO_DIR/post_install_engine.sh" ]] \
-    || fatal "post_install_engine.sh missing from repo."
-
 # ------------------------------------------------------------------------------
-# Write postboot state
+# Write installer state
 # ------------------------------------------------------------------------------
 
 if [[ ! -f "$STATE_FILE" ]]; then
-    printf 'postboot\n' > "$STATE_FILE"
-    msg "State set to: postboot"
-else
-    msg "State file already exists: $(cat "$STATE_FILE")"
+    printf "postboot\n" > "$STATE_FILE"
+    msg "State initialized: postboot"
 fi
 
 # ------------------------------------------------------------------------------
-# Fix permissions
+# Fix script permissions
 # ------------------------------------------------------------------------------
 
 find "$REPO_DIR" -name "*.sh" -exec chmod 750 {} \;
 
 # ------------------------------------------------------------------------------
-# Hand off to post_install_engine.sh
+# Launch post install engine
 # ------------------------------------------------------------------------------
 
 HANDOFF_ARGS=()
 
 if [[ -f "$POST_PROFILE" ]]; then
-    msg "Post profile found — running in automatic mode."
+    msg "Profile detected — running automatic mode."
     HANDOFF_ARGS+=(--profile "$POST_PROFILE")
 else
-    msg "No post profile found — running in interactive mode."
+    msg "No profile found — interactive mode."
 fi
 
-msg "Bootstrap complete — launching post-install engine..."
+msg "Launching post-install engine..."
+
 exec bash "$REPO_DIR/post_install_engine.sh" "${HANDOFF_ARGS[@]}"
+```
