@@ -234,6 +234,7 @@ configure_services() {
         apparmor \
         NetworkManager \
         nftables \
+        iptables-nft \
         fstrim.timer \
         reflector.timer \
         systemd-resolved \

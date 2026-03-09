@@ -85,7 +85,7 @@ enroll_tpm() {
     echo "================================================="
     echo
     echo "  Device : $LUKS_PART"
-    echo "  PCRs   : 0 + 7 + 11"
+    echo "  PCRs   : 0 + 7"
     echo "  Mode   : TPM2 + PIN"
     echo
     echo "  You will be prompted for:"
@@ -102,7 +102,7 @@ enroll_tpm() {
 
     systemd-cryptenroll \
         --tpm2-device=auto \
-        --tpm2-pcrs=0+7+11 \
+        --tpm2-pcrs=0+7 \
         --tpm2-with-pin=yes \
         "$LUKS_PART"
 

@@ -93,7 +93,7 @@ load_profile() {
         printf "  Shell:       %s\n" "${USER_SHELL:-<unset>}"
         printf "  Desktop:     %s\n" "${DESKTOP_ENV:-<unset>}"
         printf "  Packages:    %s\n" "${EXTRA_PACKAGES:-<none>}"
-        printf "  TPM PCRs:    %s\n" "${TPM_PCRS:-0+7+11}"
+        printf "  TPM PCRs:    %s\n" "${TPM_PCRS:-0+7}"
         echo
         echo "  Starting in 5 seconds... (Ctrl+C to abort)"
         sleep 5
