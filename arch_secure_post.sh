@@ -167,28 +167,17 @@ msg "Internet OK"
 ensure_git
 
 clone_repo() {
-
     msg "Cloning installer repository..."
 
-    TEMP_DIR="$(mktemp -d)"
-
-    git clone "$REPO_URL" "$TEMP_DIR" \
-        || fatal "git clone failed."
-
-    [[ -d "$TEMP_DIR/repo" ]] \
-        || fatal "Repository layout unexpected (Repo/ missing)."
-
     rm -rf "$REPO_DIR"
-    mkdir -p "$REPO_DIR"
 
-    cp -a "$TEMP_DIR/repo/." "$REPO_DIR/" \
-        || fatal "Failed installing repo."
+    git clone "$REPO_URL" "$REPO_DIR" \
+        || fatal "git clone failed."
 
     [[ -f "$REPO_DIR/post_install_engine.sh" ]] \
         || fatal "post_install_engine.sh missing."
 
     msg "Repository installed."
-
 }
 
 if [[ ! -f "$REPO_DIR/post_install_engine.sh" ]]; then
