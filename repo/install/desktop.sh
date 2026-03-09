@@ -376,6 +376,21 @@ install_jakoolit() {
 }
 
 # ==============================================================================
+# SERVICE HARDENING
+# Moved from system.sh — safer to run after all packages are installed
+# ==============================================================================
+
+configure_services_hardening() {
+    log "[*] Masking unused network services..."
+    systemctl mask         systemd-networkd         wpa_supplicant         2>/dev/null || true
+
+    log "[*] Disabling unnecessary services..."
+    systemctl disable         machines.target         NetworkManager-dispatcher.service         NetworkManager-wait-online.service         remote-integritysetup.target         remote-veritysetup.target         systemd-mountfsd.socket         systemd-network-generator.service         systemd-networkd-wait-online.service         systemd-nsresourced.socket         systemd-pstore.service         2>/dev/null || true
+
+    log "[*] Service hardening complete."
+}
+
+# ==============================================================================
 # CLEANUP
 # ==============================================================================
 
@@ -423,6 +438,7 @@ case "${DESKTOP_ENV,,}" in
     *)         fatal "Unknown DESKTOP_ENV: $DESKTOP_ENV — supported: kde, hyprland, jakoolit" ;;
 esac
 
+configure_services_hardening
 cleanup
 
 log "[*] desktop.sh complete — reboot to start $DESKTOP_ENV."

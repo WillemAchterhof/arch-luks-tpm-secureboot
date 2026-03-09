@@ -50,7 +50,7 @@ install_base() {
         cryptsetup mkinitcpio \
         sbctl efibootmgr \
         tpm2-tools \
-        apparmor nftables \
+        apparmor nftables iptables-nft \
         networkmanager iwd \
         sudo \
         man-db \
@@ -61,7 +61,8 @@ install_base() {
         libpwquality \
         polkit \
         plymouth \
-        tar gzip unzip p7zip
+        tar gzip unzip p7zip \
+        neovim
 
     log "[*] Base system installed."
 }
@@ -147,9 +148,8 @@ EOF
 configure_user() {
     log "[*] Creating user: $USERNAME"
 
-    # Build supplementary group list: always include wheel, merge with USER_GROUPS
-    local groups="wheel"
-
+    # Shell hardcoded to /bin/bash — USER_SHELL (e.g. zsh) is not installed
+    # yet at this stage. Shell change is handled by desktop.sh after install.
     arch-chroot "$MNT" useradd \
         -m \
         -G "wheel" \
@@ -218,7 +218,8 @@ EOF
     [[ -f "$sys_cfg/zz-sbctl-uki.hook" ]] \
         || fatal "Missing config: $sys_cfg/zz-sbctl-uki.hook"
     mkdir -p "$MNT/etc/pacman.d/hooks"
-    cp "$sys_cfg/zz-sbctl-uki.hook" "$MNT/etc/pacman.d/hooks/zz-sbctl-uki.hook"
+    cp "$sys_cfg/zz-sbctl-uki.hook" \
+        "$MNT/etc/pacman.d/hooks/zz-sbctl-uki.hook"
 
     log "[*] Config files deployed."
 }
@@ -234,7 +235,6 @@ configure_services() {
         apparmor \
         NetworkManager \
         nftables \
-        iptables-nft \
         fstrim.timer \
         reflector.timer \
         systemd-resolved \
@@ -244,23 +244,9 @@ configure_services() {
     ln -sf /run/systemd/resolve/stub-resolv.conf \
         "$MNT/etc/resolv.conf"
 
-    log "[*] Masking unused network services..."
-    arch-chroot "$MNT" systemctl mask \
-        systemd-networkd \
-        wpa_supplicant
-
-    log "[*] Disabling unnecessary services..."
-    arch-chroot "$MNT" systemctl disable \
-        machines.target \
-        NetworkManager-dispatcher.service \
-        NetworkManager-wait-online.service \
-        remote-integritysetup.target \
-        remote-veritysetup.target \
-        systemd-mountfsd.socket \
-        systemd-network-generator.service \
-        systemd-networkd-wait-online.service \
-        systemd-nsresourced.socket \
-        systemd-pstore.service
+    # NOTE: service masking and disabling is handled in desktop.sh
+    # after all packages are installed — safer than doing it here
+    # when some units may not exist yet.
 
     log "[*] Services configured."
 }
