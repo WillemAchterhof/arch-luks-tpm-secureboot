@@ -28,7 +28,7 @@ REPO_DIR="$INSTALLER_DIR/repo"
 
 OUTPUT_DIR="$INSTALLER_DIR/output"
 STATE_DIR="$OUTPUT_DIR/state"
-LOG_DIR="$OUTPUT_DIR/logs"
+LOG_DIR="$OUTPUT_DIR/log"
 PROFILE_DIR="$OUTPUT_DIR/profiles"
 
 STATE_FILE="$STATE_DIR/install.state"
@@ -175,13 +175,13 @@ clone_repo() {
     git clone "$REPO_URL" "$TEMP_DIR" \
         || fatal "git clone failed."
 
-    [[ -d "$TEMP_DIR/Repo" ]] \
+    [[ -d "$TEMP_DIR/repo" ]] \
         || fatal "Repository layout unexpected (Repo/ missing)."
 
     rm -rf "$REPO_DIR"
     mkdir -p "$REPO_DIR"
 
-    cp -a "$TEMP_DIR/Repo/." "$REPO_DIR/" \
+    cp -a "$TEMP_DIR/repo/." "$REPO_DIR/" \
         || fatal "Failed installing repo."
 
     [[ -f "$REPO_DIR/post_install_engine.sh" ]] \
