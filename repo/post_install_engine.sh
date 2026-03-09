@@ -32,10 +32,10 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 source "$REPO_ROOT/install/lib/bootstrap.sh"
 
-# Override USB_ROOT — file_paths.sh calculates it one level too shallow
-# because it doesn't know we're running from ~/installer/repo/repo/
-# REPO_ROOT = ~/installer/repo/repo → USB_ROOT must be ~/installer
-export USB_ROOT="$(cd "$REPO_ROOT/../.." && pwd)"
+# REPO_ROOT = ~/installer/repo/repo
+# USB_ROOT  = ~/installer (three levels up)
+# file_paths.sh builds OUTPUT_FOLDER = ~/installer/output ✓
+export USB_ROOT="$(cd "$REPO_ROOT/../../.." && pwd)"
 export OUTPUT_FOLDER="$USB_ROOT/output"
 export LOG_FOLDER="$OUTPUT_FOLDER/log"
 export STATE_FOLDER="$OUTPUT_FOLDER/state"
