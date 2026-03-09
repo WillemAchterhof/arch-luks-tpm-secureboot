@@ -1,4 +1,3 @@
-```bash
 #!/usr/bin/env bash
 set -euo pipefail
 
@@ -34,11 +33,17 @@ PINNED_COMMIT="skip"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 INSTALLER_DIR="$SCRIPT_DIR/installer"
-REPO_DIR="$INSTALLER_DIR/repo"
+
+# CLONE_DIR = git clone target (GitHub repo root lands here)
+# REPO_DIR   = inner repo/ subfolder where scripts actually live
+# This mirrors the USB structure: USB_ROOT/repo/
+CLONE_DIR="$INSTALLER_DIR/repo"
+REPO_DIR="$INSTALLER_DIR/repo/repo"
 
 OUTPUT_DIR="$INSTALLER_DIR/output"
 STATE_DIR="$OUTPUT_DIR/state"
-LOG_DIR="$OUTPUT_DIR/logs"
+# log (no 's') — must match file_paths.sh: LOG_FOLDER="$OUTPUT_FOLDER/log"
+LOG_DIR="$OUTPUT_DIR/log"
 PROFILE_DIR="$OUTPUT_DIR/profiles"
 
 STATE_FILE="$STATE_DIR/install.state"
@@ -82,7 +87,7 @@ fatal() {
 
 mkdir -p \
     "$INSTALLER_DIR" \
-    "$REPO_DIR" \
+    "$CLONE_DIR" \
     "$OUTPUT_DIR" \
     "$LOG_DIR" \
     "$STATE_DIR" \
@@ -119,7 +124,6 @@ internet_ok() {
 # ------------------------------------------------------------------------------
 
 connect_wifi() {
-
     if [[ ! -f "$WIFI_CREDS" ]]; then
         msg "No saved WiFi credentials."
         return
@@ -137,6 +141,12 @@ connect_wifi() {
     fi
 
     msg "Attempting WiFi connection: $ssid"
+
+    # Wait for NetworkManager to be ready
+    local retries=10
+    while ! nmcli general status &>/dev/null && (( retries-- > 0 )); do
+        sleep 1
+    done
 
     if [[ -n "$pass" ]]; then
         nmcli device wifi connect "$ssid" password "$pass" \
@@ -193,7 +203,6 @@ msg "Internet connection OK."
 ensure_git
 
 clone_repo() {
-
     msg "Cloning installer repository..."
 
     TEMP_DIR="$(mktemp -d)"
@@ -209,14 +218,14 @@ clone_repo() {
         git -C "$TEMP_DIR" checkout "$PINNED_COMMIT"
     fi
 
-    rm -rf "$REPO_DIR"
-    mkdir -p "$REPO_DIR"
+    rm -rf "$CLONE_DIR"
+    mkdir -p "$CLONE_DIR"
 
-    cp -a "$TEMP_DIR/." "$REPO_DIR/" \
+    cp -a "$TEMP_DIR/." "$CLONE_DIR/" \
         || fatal "Failed installing repo."
 
     [[ -f "$REPO_DIR/post_install_engine.sh" ]] \
-        || fatal "post_install_engine.sh missing."
+        || fatal "post_install_engine.sh missing after clone."
 
     msg "Repository installed."
 }
