@@ -30,20 +30,19 @@ done
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# USB_ROOT must point to ~/installer so file_paths.sh builds:
-#   OUTPUT_FOLDER = ~/installer/output
-#   LOG_FOLDER    = ~/installer/output/log
-#   STATE_FOLDER  = ~/installer/output/state
-#
-# REPO_ROOT = ~/installer/repo/repo
-# USB_ROOT  = ~/installer (two levels up)
-# file_paths.sh builds OUTPUT_FOLDER = ~/installer/output ✓
-export USB_ROOT="$(cd "$REPO_ROOT/../.." && pwd)"
-
-# Create output dirs before sourcing bootstrap so logging works immediately
-mkdir -p "$USB_ROOT/output/log" "$USB_ROOT/output/state"
-
 source "$REPO_ROOT/install/lib/bootstrap.sh"
+
+# Override USB_ROOT — file_paths.sh calculates it one level too shallow
+# because it doesn't know we're running from ~/installer/repo/repo/
+# REPO_ROOT = ~/installer/repo/repo → USB_ROOT must be ~/installer
+export USB_ROOT="$(cd "$REPO_ROOT/../.." && pwd)"
+export OUTPUT_FOLDER="$USB_ROOT/output"
+export LOG_FOLDER="$OUTPUT_FOLDER/log"
+export STATE_FOLDER="$OUTPUT_FOLDER/state"
+export PROFILE_FOLDER="$OUTPUT_FOLDER/profile"
+
+# Create dirs now that paths are correct
+mkdir -p "$LOG_FOLDER" "$STATE_FOLDER" "$PROFILE_FOLDER"
 
 # Verify state file exists
 [[ -f "$STATE_FOLDER/install.state" ]] \
