@@ -165,7 +165,32 @@ msg "Internet OK."
 
 ensure_git
 
-clone_repo() { msg "Cloning installer repository..." TEMP_DIR="$(mktemp -d)" git clone "$REPO_URL" "$TEMP_DIR" \ || fatal "git clone failed." [[ -d "$TEMP_DIR/Repo" ]] \ || fatal "Repository layout unexpected (Repo/ missing)." rm -rf "$REPO_DIR" mkdir -p "$REPO_DIR" cp -a "$TEMP_DIR/Repo/." "$REPO_DIR/" \ || fatal "Failed installing repo." [[ -f "$REPO_DIR/post_install_engine.sh" ]] \ || fatal "post_install_engine.sh missing." msg "Repository installed." }
+clone_repo() {
+    msg "Cloning installer repository into $REPO_DIR ..."
+
+    TEMP_DIR="$(mktemp -d)"
+
+    git clone "$REPO_URL" "$TEMP_DIR" \
+        || fatal "git clone failed."
+
+    msg "Clone complete. Installing into $REPO_DIR ..."
+
+    # Show what was cloned for debugging
+    ls "$TEMP_DIR" >> "$LOG_FILE" 2>&1 || true
+
+    rm -rf "$REPO_DIR"
+    mkdir -p "$REPO_DIR"
+
+    cp -a "$TEMP_DIR/." "$REPO_DIR/" \
+        || fatal "Failed copying repo into $REPO_DIR."
+
+    msg "Repo contents: $(ls "$REPO_DIR")"
+
+    [[ -f "$REPO_DIR/post_install_engine.sh" ]] \
+        || fatal "post_install_engine.sh not found at $REPO_DIR/post_install_engine.sh"
+
+    msg "Repository installed successfully."
+}
 
 if [[ -f "$REPO_DIR/post_install_engine.sh" ]]; then
     msg "Repository already present at $REPO_DIR."
