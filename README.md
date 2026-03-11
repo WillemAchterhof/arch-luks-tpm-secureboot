@@ -76,7 +76,7 @@ The installer will:
 - Walk through disk setup, encryption, base install, bootloader, and Secure Boot enrollment
 
 You will be prompted for:
-- **LUKS passphrase** — choose a strong one. You will need it until TPM enrollment completes on first boot
+- **LUKS passphrase** — This will be autogenerate and displayed and saved on the USB in the output folder.
 - **User password** — your login password
 
 ### Phase Two — Post-boot
