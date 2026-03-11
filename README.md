@@ -32,37 +32,11 @@ Supported Desktop Environments
 
 Preperation
  - Download the Arch Linux ISO
- - Create a isntallation USB: dd bs=4M if=path/to/archlinux-version-x86_64.iso of=/dev/disk/by-id/usb-My_flash_drive conv=fsync oflag=direct status=progress
+ - Create an isntallation USB: dd bs=4M if=path/to/archlinux-version-x86_64.iso of=/dev/disk/by-id/usb-My_flash_drive conv=fsync oflag=direct status=progress
+ - Create an extra partition (ext4) on the USB, and copy arch_secure_isntall.sh to there. 
 
 
 Boot from the Arch Linux ISO
-Connect to the internet:
-
-bash  # WiFi
-  iwctl
-  station wlan0 scan
-  station wlan0 connect "Your SSID"
-  exit
-
-  # Verify
-  ping archlinux.org
-
-Set the system clock:
-
-bash  timedatectl set-ntp true
-
-If using Secure Boot — enter UEFI firmware and set to Setup Mode before running the installer
-
-USB Preparation
-Format a USB drive with a partition for the installer files:
-bash# Replace /dev/sdX with your USB device
-sgdisk -Z /dev/sdX
-sgdisk -n 1:0:+100M -t 1:ef00 /dev/sdX   # EFI (if needed)
-sgdisk -n 2:0:+2G   -t 2:8300 /dev/sdX   # Arch ISO
-sgdisk -n 3:0:0     -t 3:8300 /dev/sdX   # Installer files
-
-# Format partition 3
-mkfs.ext4 /dev/sdX3
 
 # Mount and copy installer files
 mount /dev/sdX3 /mnt/installer
