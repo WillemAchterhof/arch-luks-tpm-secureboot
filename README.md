@@ -38,19 +38,14 @@ Preperation
 
 Boot from the Arch Linux ISO
 
-# Mount and copy installer files
-mount /dev/sdX3 /mnt/installer
-cp -r repo/ arch_secure_install.sh /mnt/installer/
-umount /mnt/installer
-Installation
-Phase One — Pre-boot (runs from Arch ISO)
-Boot the Arch ISO, then:
-bash# Mount the installer USB partition
-mount /dev/sdb3 /mnt/sa
-cd /mnt/sa
+Create a mountpoint and mount the parititon containing the installer.
+mkdir -p /run/sa
+mount /dev/sdb3 /run/sa
+cd /run/sa
 
 # Run the installer
-sudo bash arch_secure_install.sh
+bash arch_secure_install.sh
+
 The installer will:
 
 Check internet connectivity
