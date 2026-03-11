@@ -1,9 +1,11 @@
 Acknowledgements:
+-----------------
 - The Arch Wiki — for making all of this possible
 - Ataraxxia — inspiration and reference configs — github.com/Ataraxxia
 - JaKooLit — Hyprland rice and dotfiles — github.com/JaKooLit
 
 Arch Secure Installer — V1
+--------------------------
 An automated Arch Linux installer with LUKS encryption, Secure Boot, and TPM auto-unlock.
 Why I Built This
 Two reasons:
