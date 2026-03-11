@@ -67,26 +67,6 @@ Connect to WiFi using saved credentials
 Install the desktop environment
 Apply system hardening
 
-After this you will not need the LUKS passphrase for normal boots — TPM handles it automatically.
-
-Keep your LUKS passphrase stored safely. You will need it if the TPM seal breaks (firmware update, Secure Boot key change, etc.)
-
-Install Profile
-Create a profile file before running the installer:
-bashcp repo/install/configs/install_profile.conf.example output/profile/install_profile.conf
-nano output/profile/install_profile.conf
-Key settings:
-bashINSTALL_HOSTNAME="my-arch"
-INSTALL_USERNAME="willem"
-INSTALL_DISK="/dev/nvme0n1"
-INSTALL_ROOT_FS="ext4"
-DESKTOP_ENV="hyprland"       # kde | hyprland | jakoolit
-INSTALL_LOCALE="en_US.UTF-8"
-INSTALL_TIMEZONE="Europe/Amsterdam"
-INSTALL_KEYMAP="us"
-Security Features
-FeatureDetailsLUKS2 encryptionFull disk encryption, argon2id key derivationSecure BootCustom keys enrolled via sbctlTPM auto-unlockPCRs 0+7 (firmware + Secure Boot state)UKIKernel, initramfs, cmdline signed as single imageAppArmorMAC enforcementnftablesDefault-deny firewall with bogon filteringSysctl hardeningASLR, ptrace restrictions, BPF lockdownModule blacklistThunderbolt, FireWire, legacy hardware
-
 
 Status
 V1 — functional, tested on physical hardware and KVM VM.
