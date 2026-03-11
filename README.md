@@ -1,3 +1,8 @@
+Acknowledgements:
+- The Arch Wiki — for making all of this possible
+- Ataraxxia — inspiration and reference configs — github.com/Ataraxxia
+- JaKooLit — Hyprland rice and dotfiles — github.com/JaKooLit
+
 Arch Secure Installer — V1
 An automated Arch Linux installer with LUKS encryption, Secure Boot, and TPM auto-unlock.
 Why I Built This
@@ -114,11 +119,7 @@ INSTALL_TIMEZONE="Europe/Amsterdam"
 INSTALL_KEYMAP="us"
 Security Features
 FeatureDetailsLUKS2 encryptionFull disk encryption, argon2id key derivationSecure BootCustom keys enrolled via sbctlTPM auto-unlockPCRs 0+7 (firmware + Secure Boot state)UKIKernel, initramfs, cmdline signed as single imageAppArmorMAC enforcementnftablesDefault-deny firewall with bogon filteringSysctl hardeningASLR, ptrace restrictions, BPF lockdownModule blacklistThunderbolt, FireWire, legacy hardware
-Acknowledgements
 
-JaKooLit — Hyprland rice and dotfiles — github.com/JaKooLit
-Ataraxxia — inspiration and reference configs — github.com/Ataraxxia
-The Arch Wiki — for making all of this possible
 
 Status
 V1 — functional, tested on physical hardware and KVM VM.
