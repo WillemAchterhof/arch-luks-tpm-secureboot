@@ -4,38 +4,31 @@ Acknowledgements:
 - Ataraxxia — inspiration and reference configs — github.com/Ataraxxia
 - JaKooLit — Hyprland rice and dotfiles — github.com/JaKooLit
 
-Arch Secure Installer — V1
+Arch Secure Installer — V1 (TPM, Secure Boot, Luks, are mandatory)
 --------------------------
 An automated Arch Linux installer with LUKS encryption, Secure Boot, and TPM auto-unlock.
-Why I Built This
-Two reasons:
+Why I Built This, two reasons:
 
 Disaster recovery — reinstalling a fully hardened Arch system from scratch takes hours. This gets me back to a working, secured system as automatically as possible.
 Learning — building this taught me how Arch, LUKS, TPM, and Secure Boot actually work together, rather than just following a wiki.
 
 What It Does
 
-Partitions and formats the target disk
-Sets up LUKS full-disk encryption
-Installs a base Arch system via pacstrap
-Builds a Unified Kernel Image (UKI) with mkinitcpio
-Enrolls Secure Boot keys with sbctl
-On first boot: enrolls the TPM for auto-unlock (no password needed after setup)
-Installs and configures a desktop environment
-Applies system hardening (firewall, sysctl, module blacklist, AppArmor)
+- Preparing the target disk, for install. (Clean, Format, Luks)
+- Installs a base Arch system via pacstrap
+- Builds a Unified Kernel Image (UKI) with mkinitcpio
+- Creating Secure boot keys, signing the UKI and enrolling to Secure Boot (sbctl)
+- On first boot: enroll TPM for auto-unlock (pin unlock)
+- Installs and configures a desktop environment
+- Applies system hardening (firewall, sysctl, module blacklist, AppArmor)
+
 
 Supported Desktop Environments
 
-KDE Plasma
-Hyprland (with Waybar, Rofi, TokyoNight theme)
-JaKooLit Hyprland (community rice) — github.com/JaKooLit
+- KDE Plasma
+- Hyprland (with Waybar, Rofi, TokyoNight theme)
+- JaKooLit Hyprland (community rice) — github.com/JaKooLit
 
-Requirements
-Hardware
-
-UEFI system (no legacy BIOS)
-TPM 2.0 (optional — required for auto-unlock)
-Secure Boot capable (optional but recommended)
 
 Before You Start
 
