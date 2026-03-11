@@ -30,7 +30,10 @@ Supported Desktop Environments
 - JaKooLit Hyprland (community rice) — github.com/JaKooLit
 
 
-Before You Start
+Preperation
+ - Download the Arch Linux ISO
+ - Create a isntallation USB: dd bs=4M if=path/to/archlinux-version-x86_64.iso of=/dev/disk/by-id/usb-My_flash_drive conv=fsync oflag=direct status=progress
+
 
 Boot from the Arch Linux ISO
 Connect to the internet:
