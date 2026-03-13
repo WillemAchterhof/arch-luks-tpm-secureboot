@@ -27,7 +27,7 @@ SA_BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SA_INTSALL_DIR="$SA_BASE_DIR/arch-secure"
 
 # Logging
-SA_LOG_FILE="$SA_BASE_DIR/output/arch-secure-install.log"
+SA_LOG_FILE="$SA_INSTALL_DIR/output/arch-secure-install.log"
 mkdir -p "$(dirname "$SA_LOG_FILE")"
 : > "$SA_LOG_FILE"
 
@@ -129,9 +129,9 @@ sync_repo() {
 verify_repo() {
     local required=(
         "phase_one_preboot"
-        # "phase_two_postboot"
-        # "phase_three_desktop"
-        # "phase_four_software"
+        "phase_two_postboot"
+        "phase_three_desktop"
+        "phase_four_software"
         "lib"
         "configs"
     )

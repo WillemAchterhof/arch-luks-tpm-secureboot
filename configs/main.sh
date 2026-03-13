@@ -1,0 +1,1 @@
+echo "configs folder present."
