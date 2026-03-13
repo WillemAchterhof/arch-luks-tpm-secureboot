@@ -23,11 +23,11 @@ SA_REPO_URL="https://github.com/WillemAchterhof/arch-luks-tpm-secureboot.git"
 SA_REPO_BRANCH="v2"
 
 # Local
-SA_SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SA_REPO_DIR="$SA_SCRIPT_DIR/arch-secure"
+SA_BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SA_INTSALL_DIR="$SA_BASE_DIR/arch-secure"
 
 # Logging
-SA_LOG_FILE="$SA_SCRIPT_DIR/output/arch-secure-install.log"
+SA_LOG_FILE="$SA_BASE_DIR/output/arch-secure-install.log"
 mkdir -p "$(dirname "$SA_LOG_FILE")"
 : > "$SA_LOG_FILE"
 
@@ -112,14 +112,14 @@ check_packages() {
 
 # Removes any previous clone and pulls a clean copy from GitHub.
 sync_repo() {
-    if [[ -d "$SA_REPO_DIR" ]]; then
+    if [[ -d "$SA_INTSALL_DIR" ]]; then
         msg "Previous repo found - removing."
-        rm -rf "$SA_REPO_DIR" \
-            || fatal "Failed to remove previous repo: $SA_REPO_DIR"
+        rm -rf "$SA_INTSALL_DIR" \
+            || fatal "Failed to remove previous repo: $SA_INTSALL_DIR"
     fi
 
     msg "Cloning repository..."
-    git clone --branch "$SA_REPO_BRANCH" "$SA_REPO_URL" "$SA_REPO_DIR" \
+    git clone --branch "$SA_REPO_BRANCH" "$SA_REPO_URL" "$SA_INTSALL_DIR" \
         || fatal "Failed to clone repository."
 
     msg "Repository synced."
@@ -137,7 +137,7 @@ verify_repo() {
     )
 
     for item in "${required[@]}"; do
-        if [[ ! -d "$SA_REPO_DIR/$item" ]]; then
+        if [[ ! -d "$SA_INTSALL_DIR/$item" ]]; then
             fatal "Repository structure invalid - missing:  $item"
         fi
     done
@@ -158,4 +158,4 @@ sync_repo
 verify_repo
 
 # Hand off to phase one.
-exec bash "$SA_REPO_DIR/phase_one_preboot/main.sh"
+exec bash "$SA_INTSALL_DIR/phase_one_preboot/main.sh"
