@@ -129,9 +129,9 @@ sync_repo() {
 verify_repo() {
     local required=(
         "phase_one_preboot"
-        "phase_two_postboot"
-        "phase_three_desktop"
-        "phase_four_software"
+        #"phase_two_postboot"
+        #"phase_three_desktop"
+        #"phase_four_software"
         "lib"
         "configs"
     )
