@@ -24,11 +24,10 @@ SA_REPO_BRANCH="v2"
 
 # Local
 SA_BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SA_INTSALL_DIR="$SA_BASE_DIR/arch-secure"
+SA_INSTALL_DIR="$SA_BASE_DIR/arch-secure"
 
 # Logging
-SA_LOG_FILE="$SA_BASE_DIR/output/arch-secure-install.log"
-mkdir -p "$(dirname "$SA_LOG_FILE")"
+SA_LOG_FILE="$SA_BASE_DIR/arch-secure-install.log"
 : > "$SA_LOG_FILE"
 
 # ------------------------------------------------------------------------------
@@ -37,32 +36,43 @@ mkdir -p "$(dirname "$SA_LOG_FILE")"
 
 # Writes a section header with timestamp to the log file.
 log_header() {
-    printf "================================================================================\n" >> "$SA_LOG_FILE"
-    printf " %s\n" "$1"                                                                         >> "$SA_LOG_FILE"
-    printf " %s\n" "$(date '+%Y-%m-%d %H:%M:%S')"                                               >> "$SA_LOG_FILE"
-    printf "================================================================================\n" >> "$SA_LOG_FILE"
+    log "================================================================================"
+    log "$1"
+    log " $(date '+%Y-%m-%d %H:%M:%S')"
+    log "================================================================================"
 }
 
 # Writes all SA_ variables to the log file. Skips SAS_ (sensitive) variables.
 log_variables () {
-    printf "VARIABLES\n" >> "$SA_LOG_FILE"
-    while IFS='=' read -r name value; do
-        [[ "$name" == SAS_* ]] && continue
-        printf " %-20s = %s\n" "$name" "$value" >> "$SA_LOG_FILE"
-    done < <(declare -p | grep "^declare -- SA_" | sed 's/declare -- //' | sed 's/"//g')
-    printf "================================================================================\n" >> "$SA_LOG_FILE"
+    log "VARIABLES"
+    for var in $(compgen -A variable SA_); do
+        [[ "$var" == SAS_* ]] && continue
+        log "$(printf " %-20s = %s" "$var" "${!var}")"
+    done
+    log "================================================================================"
+}
+
+log() {
+    printf " %s\n" "$1"
+    printf " %s\n" "$1" >> "$SA_LOG_FILE"
+}
+
+check_install_dir() {
+    # Guard - validate before anything runs
+    local base install
+    base="$(realpath "$SA_BASE_DIR")"
+    install="$(realpath -m "$SA_INSTALL_DIR")"
+
+    [[ "$install" == "$base/"* ]] \
+        || fatal "SA_INSTALL_DIR is outside base dir, refusing to remove: $install"
 }
 
 # Prints a message to terminal and log file.
-msg()   { 
-    printf "\n[*] %s\n\n" "$1"
-    printf "[*] %s\n" "$1" >> "$SA_LOG_FILE"
-}
+msg()   { log "[*] $1"; }
 
 # Prints a fatal error to terminal and log file, then exits.
-fatal() { 
-    printf "\n[FATAL] %s\n\n" "$1"
-    printf "[FATAL] %s\n" "$1" >> "$SA_LOG_FILE"
+fatal() {
+    log "[FATAL] $1"
     exit 1
 }
 
@@ -76,7 +86,7 @@ check_root() {
 # Verifies internet connectivity. Prints iwctl instructions if not connected.
 check_internet() {
     if ! curl -s --fail --max-time 5 https://archlinux.org -o /dev/null; then
-        printf "\n[FATAL] No internet connection detected.\n" 
+        printf "\n[FATAL] No internet connection detected.\n"
         printf "[FATAL] No internet connection detected.\n" >> "$SA_LOG_FILE"
         printf "        Connect via WiFi using iwctl\n"
         printf "        -----------------------------\n"
@@ -86,7 +96,7 @@ check_internet() {
         printf "        iwctl station <adapter> connect <SSID>\n"
         printf "        ---------------------------------------------\n"
         printf "        Then re-run: bash arch_secure_install.sh\n\n"
-        exit 1
+        exit 1;
     fi
     msg "Internet connection verified."
 }
@@ -100,26 +110,31 @@ check_packages() {
 
     for pkg in "${required[@]}"; do
         if command -v "$pkg" >/dev/null 2>&1; then
-            printf " [installed] %s\n" "$pkg"
+            log "[installed] $pkg"
         else
-            printf " [installing] %s\n" "$pkg"
+            log "[installing] $pkg"
             pacman -Sy --noconfirm "$pkg" \
                 || fatal "Failed to install: $pkg"
-            printf " [installed] %s\n" "$pkg"
+            log "[installed] $pkg"
         fi
     done
 }
 
 # Removes any previous clone and pulls a clean copy from GitHub.
 sync_repo() {
-    if [[ -d "$SA_INTSALL_DIR" ]]; then
+    check_install_dir
+    if [[ -d "$SA_INSTALL_DIR" ]]; then
         msg "Previous repo found - removing."
-        rm -rf "$SA_INTSALL_DIR" \
-            || fatal "Failed to remove previous repo: $SA_INTSALL_DIR"
+        rm -rf -- "$SA_INSTALL_DIR" \
+            || fatal "Failed to remove previous repo: $SA_INSTALL_DIR"
     fi
 
     msg "Cloning repository..."
-    git clone --branch "$SA_REPO_BRANCH" "$SA_REPO_URL" "$SA_INTSALL_DIR" \
+    git clone  \
+        --branch "$SA_REPO_BRANCH" \
+        --depth 1 \
+        "$SA_REPO_URL" \
+        "$SA_INSTALL_DIR" \
         || fatal "Failed to clone repository."
 
     msg "Repository synced."
@@ -137,7 +152,7 @@ verify_repo() {
     )
 
     for item in "${required[@]}"; do
-        if [[ ! -d "$SA_INTSALL_DIR/$item" ]]; then
+        if [[ ! -d "$SA_INSTALL_DIR/$item" ]]; then
             fatal "Repository structure invalid - missing:  $item"
         fi
     done
@@ -151,6 +166,7 @@ verify_repo() {
 # Execution order matters — each step depends on the previous one succeeding.
 log_header "BOOTSTRAP"
 log_variables
+check_install_dir
 check_root
 check_internet
 check_packages
@@ -158,4 +174,4 @@ sync_repo
 verify_repo
 
 # Hand off to phase one.
-exec bash "$SA_INTSALL_DIR/phase_one_preboot/main.sh"
+exec bash "$SA_INSTALL_DIR/phase_one_preboot/main.sh"
