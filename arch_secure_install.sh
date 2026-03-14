@@ -96,7 +96,7 @@ check_internet() {
         printf "        iwctl station <adapter> connect <SSID>\n"
         printf "        ---------------------------------------------\n"
         printf "        Then re-run: bash arch_secure_install.sh\n\n"
-        exit 1;
+        exit 1
     fi
     msg "Internet connection verified."
 }
