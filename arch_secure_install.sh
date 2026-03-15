@@ -24,10 +24,14 @@ SA_REPO_BRANCH="v2"
 
 # Local
 SA_BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SA_INSTALL_DIR="$SA_BASE_DIR/arch_secure"
+SA_INSTALL_DIR="$SA_BASE_DIR/sa_install"
+SA_STATE_DIR="$SA_BASE_DIR/sa_state"
 
 # Logging
-SA_LOG_FILE="$SA_BASE_DIR/arch_secure_install.log"
+SA_LOG_FILE="$SA_STATE_DIR/arch_secure_install.log"
+
+# Create state folder and log file
+mkdir -p "$SA_STATE_DIR"
 : > "$SA_LOG_FILE"
 
 # ------------------------------------------------------------------------------
@@ -147,16 +151,18 @@ sync_repo() {
 # Verifies the expected folder structure exists after cloning.
 verify_repo() {
     local required=(
-        "phase_one_preboot"
-        "phase_two_postboot"
-        "phase_three_desktop"
-        "phase_four_software"
+        "main.sh"
+        "sa_preboot"
+        "sa_postboot"
+        "sa_desktop"
+        "sa_software_basic"
+        "sa_software_extra"
         "lib"
         "configs"
     )
 
     for item in "${required[@]}"; do
-        if [[ ! -d "$SA_INSTALL_DIR/$item" ]]; then
+        if [[ ! -e "$SA_INSTALL_DIR/$item" ]]; then
             fatal "Repository structure invalid - missing:  $item"
         fi
     done
@@ -178,4 +184,4 @@ sync_repo
 verify_repo
 
 # Hand off to phase one.
-exec bash "$SA_INSTALL_DIR/phase_one_preboot/main.sh"
+exec bash "$SA_INSTALL_DIR/main.sh"

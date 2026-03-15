@@ -17,11 +17,12 @@
 # ------------------------------------------------------------------------------
 
 SA_BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../" && pwd)"
-SA_INSTALL_DIR="$SA_BASE_DIR/arch_secure"
+SA_INSTALL_DIR="$SA_BASE_DIR/sa_install"
+SA_STATE_DIR="$SA_BASE_DIR/sa_state"
 SA_LIB_DIR="$SA_INSTALL_DIR/lib"
 
 # ------------------------------------------------------------------------------
 # Files
 # ------------------------------------------------------------------------------
 
-SA_LOG_FILE="$SA_BASE_DIR/arch_secure_install.log"
+SA_LOG_FILE="$SA_STATE_DIR/arch_secure_install.log"
