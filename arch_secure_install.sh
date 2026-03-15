@@ -24,10 +24,10 @@ SA_REPO_BRANCH="v2"
 
 # Local
 SA_BASE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SA_INSTALL_DIR="$SA_BASE_DIR/arch-secure"
+SA_INSTALL_DIR="$SA_BASE_DIR/arch_secure"
 
 # Logging
-SA_LOG_FILE="$SA_BASE_DIR/arch-secure-install.log"
+SA_LOG_FILE="$SA_BASE_DIR/arch_secure_install.log"
 : > "$SA_LOG_FILE"
 
 # ------------------------------------------------------------------------------
@@ -36,24 +36,28 @@ SA_LOG_FILE="$SA_BASE_DIR/arch-secure-install.log"
 
 # Writes a section header with timestamp to the log file.
 log_header() {
-    log "================================================================================"
-    log "$1"
-    log " $(date '+%Y-%m-%d %H:%M:%S')"
-    log "================================================================================"
+    log_silent "================================================================================"
+    log_silent "$1"
+    log_silent " $(date '+%Y-%m-%d %H:%M:%S')"
+    log_silent "================================================================================"
 }
 
 # Writes all SA_ variables to the log file. Skips SAS_ (sensitive) variables.
 log_variables () {
-    log "VARIABLES"
+    log_silent "VARIABLES"
     for var in $(compgen -A variable SA_); do
         [[ "$var" == SAS_* ]] && continue
-        log "$(printf " %-20s = %s" "$var" "${!var}")"
+        log_silent "$(printf " %-20s = %s" "$var" "${!var}")"
     done
-    log "================================================================================"
+    log_silent "================================================================================"
 }
 
 log() {
     printf " %s\n" "$1"
+    printf " %s\n" "$1" >> "$SA_LOG_FILE"
+}
+
+log_silent() {
     printf " %s\n" "$1" >> "$SA_LOG_FILE"
 }
 
